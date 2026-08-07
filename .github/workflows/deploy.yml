@@ -35,14 +35,24 @@ jobs:
       - name: Configure custom domain
         run: echo 'xlmxbarber.com' > ./dist/CNAME
 
-      - name: Copy sitemap to dist
-        run: cp public/sitemap.xml ./dist/sitemap.xml
+      - name: Create sitemap directly in dist
+        run: |
+          cat << 'EOF' > ./dist/sitemap.xml
+          <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url>
+              <loc>https://xlmxbarber.com/</loc>
+              <lastmod>2026-08-07</lastmod>
+              <changefreq>weekly</changefreq>
+              <priority>1.0</priority>
+            </url>
+          </urlset>
+          EOF
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: dist
-          clean: false
+          clean: true
           token: ${{ secrets.GITHUB_TOKEN }}
-
