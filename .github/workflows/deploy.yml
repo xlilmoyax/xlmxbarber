@@ -35,6 +35,9 @@ jobs:
       - name: Configure custom domain
         run: echo 'xlmxbarber.com' > ./dist/CNAME
 
+      - name: Copy sitemap to dist
+        run: cp public/sitemap.xml ./dist/sitemap.xml
+
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
