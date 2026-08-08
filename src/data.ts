@@ -107,23 +107,23 @@ export const IMAGES = {
 
 // Lists and configurations for screens
 export const BRONCE_MEMBERSHIPS_DETAIL = [
-  { service: 'Corte + Ceja', count: 3, listPrice: '$42,000', memberPrice: '$37,000' },
-  { service: 'Corte + Ceja', count: 4, listPrice: '$56,000', memberPrice: '$50,000' },
-  { service: 'Corte Completo', count: 2, listPrice: '$36,000', memberPrice: '$30,000' },
-  { service: 'Corte Completo', count: 3, listPrice: '$54,000', memberPrice: '$50,000' },
-  { service: 'Corte Completo', count: 4, listPrice: '$72,000', memberPrice: '$65,000' },
+  { service: 'Corte + Ceja', count: 3, listPrice: '$48,000', memberPrice: '$40,000' },
+  { service: 'Corte + Ceja', count: 4, listPrice: '$64,000', memberPrice: '$55,000' },
+  { service: 'Corte Completo', count: 2, listPrice: '$40,000', memberPrice: '$35,000' },
+  { service: 'Corte Completo', count: 3, listPrice: '$60,000', memberPrice: '$52,000' },
+  { service: 'Corte Completo', count: 4, listPrice: '$80,000', memberPrice: '$70,000' },
 ];
 
 export const PLATA_MEMBERSHIPS_DETAIL = [
-  { service: 'Cut Full + Spa', count: 2, listPrice: '$50,000', memberPrice: '$45,000' },
-  { service: 'Cut Full + Spa', count: 3, listPrice: '$75,000', memberPrice: '$70,000' },
-  { service: 'Cut Full + Spa', count: 4, listPrice: '$100,000', memberPrice: '$90,000' },
+  { service: 'Cut Full + Spa Capilar', count: 2, listPrice: '$70,000', memberPrice: '$65,000' },
+  { service: 'Cut Full + Spa Capilar', count: 3, listPrice: '$105,000', memberPrice: '$90,000' },
+  { service: 'Cut Full + Spa Capilar', count: 4, listPrice: '$140,000', memberPrice: '$105,000' },
 ];
 
 export const GOLD_MEMBERSHIPS_DETAIL = [
-  { service: 'Experiencia 360', count: 2, listPrice: '$80,000', memberPrice: '$70,000' },
-  { service: 'Experiencia 360', count: 3, listPrice: '$120,000', memberPrice: '$110,000' },
-  { service: 'Experiencia 360', count: 4, listPrice: '$160,000', memberPrice: '$140,000' },
+  { service: 'Experiencia 360', count: 2, listPrice: '$100,000', memberPrice: '$90,000' },
+  { service: 'Experiencia 360', count: 3, listPrice: '$150,000', memberPrice: '$120,000' },
+  { service: 'Experiencia 360', count: 4, listPrice: '$200,000', memberPrice: '$140,000' },
 ];
 
 export const FAQS = [
