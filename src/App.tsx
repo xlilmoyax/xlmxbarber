@@ -78,7 +78,7 @@ const [loggedInClient, setLoggedInClient] = useState<RegisteredUser | null>(() =
   });
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [failedEmailJobs, setFailedEmailJobs] = useState<Array<{id:string; template:string; params:any; error?: any; ts?: string; attempts?: number; dbId?: any;}>>([]);
-  const [showFailedDetails, setShowFailedDetails] = useState(false);
+
 useEffect(() => {
     localStorage.setItem('xlmx_users', JSON.stringify(users));
   }, [users]);
@@ -262,6 +262,9 @@ const handleAddUser = async (newUser: RegisteredUser): Promise<boolean> => {
     user_id: newUser.id,
     user_name: newUser.fullname,
     user_email: newUser.email,
+    to_email: newUser.email,
+    to_name: newUser.fullname,
+    reply_to: newUser.email,
     user_phone: newUser.phone,
     user_membership: newUser.membership,
     is_socio: newUser.isSocio ? 'Sí' : 'No',
@@ -574,7 +577,6 @@ const handleLogoutClient = () => {
           </div>
         </div>
       )}
-
       {/* Main Content Router with elegant fade transitions */}
       <main className="flex-grow">
         
@@ -625,18 +627,22 @@ const handleLogoutClient = () => {
           />
         )}
 
-        {currentScreen === 'dashboard-admin' && (
-  <AdminDashboardTyped
-    users={users}
-    onLogout={handleLogoutAdmin}
-    onNavigate={handleNavigate}
-    onDeleteUser={handleDeleteUser}
-    onAddUser={handleAddUser}
-    onUpdateUser={handleUpdateUser}
-    onSyncDatabase={handleSyncDatabase}
-    isSyncing={isSyncing}
-  />
-)}
+              {currentScreen === 'dashboard-admin' && (
+          <AdminDashboardTyped
+            users={users}
+            onLogout={handleLogoutAdmin}
+            onNavigate={handleNavigate}
+            onDeleteUser={handleDeleteUser}
+            onAddUser={handleAddUser}
+            onUpdateUser={handleUpdateUser}
+            onSyncDatabase={handleSyncDatabase}
+            isSyncing={isSyncing}
+          />
+        )}
+
+        {currentScreen === 'legal' && (
+          <LegalView onNavigate={handleNavigate} />
+        )}
 
         {currentScreen === 'legal' && (
           <LegalView onNavigate={handleNavigate} />

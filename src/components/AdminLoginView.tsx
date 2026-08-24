@@ -130,8 +130,16 @@ export default function AdminLoginView({
         setTimeout(() => setIsShaking(false), 500);
       }
     } catch (err: any) {
-      console.error(err);
-      setClientErrorMsg('Error de conexión al verificar el usuario. Por favor intenta de nuevo.');
+      console.error('Error de conexión Supabase al verificar usuario:', err);
+      const fallbackUser = users.find((user) => user.email.toLowerCase() === sanitizedEmail);
+      if (fallbackUser) {
+        setLoggedInClient(fallbackUser);
+        setSuccessMsg(`¡Bienvenido de vuelta, ${fallbackUser.fullname}! Se cargó tu perfil desde el caché local.`);
+        setClientEmail('');
+        setTimeout(() => setSuccessMsg(null), 5000);
+      } else {
+        setClientErrorMsg('Error de conexión al verificar el usuario. Por favor intenta de nuevo.');
+      }
     } finally {
       setLoading(false);
     }
