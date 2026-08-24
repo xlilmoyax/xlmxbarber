@@ -78,6 +78,7 @@ const [loggedInClient, setLoggedInClient] = useState<RegisteredUser | null>(() =
   });
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [failedEmailJobs, setFailedEmailJobs] = useState<Array<{id:string; template:string; params:any; error?: any; ts?: string; attempts?: number; dbId?: any;}>>([]);
+  const [showFailedDetails, setShowFailedDetails] = useState(false);
 
 useEffect(() => {
     localStorage.setItem('xlmx_users', JSON.stringify(users));
