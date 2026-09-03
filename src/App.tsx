@@ -32,7 +32,7 @@ import LegalView from './components/LegalView';
 import CursosView from './components/CursosView';
 import ProductosView from './components/ProductosView';
 import emailjs from '@emailjs/browser';
-import { isSupabaseConfigured, supabase, mapRowToUser, mapUserToRow } from './lib/supabaseClient';
+import { isSupabaseConfigured, supabase, mapRowToUser } from './lib/supabaseClient';
 
 emailjs.init('Oql46z_LFLkAI8_DE');
 
@@ -62,7 +62,7 @@ export default function App() {
 const [users, setUsers] = useState<RegisteredUser[]>(() => {
     const savedUsers = localStorage.getItem('xlmx_users');
     try {
-      return savedUsers ? JSON.parse(savedUsers) : INITIAL_USERS;
+      return savedUsers ? JSON.parse(savedUsers) : isSupabaseConfigured ? [] : INITIAL_USERS;
     } catch {
       localStorage.removeItem('xlmx_users');
       return INITIAL_USERS;
@@ -99,19 +99,9 @@ useEffect(() => {
     }
     if (data) {
       const remoteUsers = data.map(mapRowToUser);
-      const remoteIds = new Set(remoteUsers.map((user) => user.id));
-      const localOnlyUsers = users.filter((user) => !remoteIds.has(user.id));
-
-      // Al volver a tener conexión, sube los registros locales que aún no
-      // existen en Supabase para que ambas fuentes tengan la misma información.
-      if (localOnlyUsers.length > 0) {
-        const { error: syncError } = await supabase
-          .from('users')
-          .upsert(localOnlyUsers.map(mapUserToRow), { onConflict: 'id' });
-        if (syncError) console.error('No se pudieron sincronizar los usuarios locales:', syncError.message);
-      }
-
-      setUsers([...localOnlyUsers, ...remoteUsers]);
+      // Supabase es la fuente autoritativa cuando responde. No se vuelven a
+      // subir usuarios que falten allí, porque pueden haber sido eliminados.
+      setUsers(remoteUsers);
       console.log("Usuarios cargados desde Supabase:", data.length);
     }
   };
