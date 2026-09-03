@@ -76,6 +76,12 @@ export default function Header({
       targetId: 'news',
       tooltip: 'Enlace directo a los últimos comunicados e historias de la marca.'
     },
+    {
+      label: 'CURSOS',
+      action: 'cursos',
+      targetId: null,
+      tooltip: 'Consulta la información sobre nuestros próximos cursos de formación.'
+    },
   ];
 
   // Keep menu active state correctly aligned with current view context

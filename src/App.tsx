@@ -29,6 +29,7 @@ type AdminDashboardTypedProps = {
 };
 const AdminDashboardTyped = AdminDashboardView as unknown as React.ComponentType<AdminDashboardTypedProps>;
 import LegalView from './components/LegalView';
+import CursosView from './components/CursosView';
 import emailjs from '@emailjs/browser';
 import { isSupabaseConfigured, supabase, mapRowToUser, mapUserToRow } from './lib/supabaseClient';
 
@@ -46,6 +47,7 @@ const SCREEN_HASHES: Screen[] = [
   'login-admin',
   'dashboard-admin',
   'legal',
+  'cursos',
 ];
 
 const getScreenFromHash = (hash: string): Screen => {
@@ -643,6 +645,10 @@ const handleLogoutClient = () => {
 
         {currentScreen === 'legal' && (
           <LegalView onNavigate={handleNavigate} />
+        )}
+
+        {currentScreen === 'cursos' && (
+          <CursosView onNavigate={handleNavigate} />
         )}
 
         {currentScreen === 'legal' && (
