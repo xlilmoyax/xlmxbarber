@@ -15,7 +15,8 @@ export type Screen =
   | 'login-admin'
   | 'dashboard-admin'
   | 'legal'
-  | 'cursos';
+  | 'cursos'
+  | 'productos';
 
 // En tu archivo src/types.ts
 export interface RegisteredUser {

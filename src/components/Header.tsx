@@ -82,12 +82,22 @@ export default function Header({
       targetId: null,
       tooltip: 'Consulta la información sobre nuestros próximos cursos de formación.'
     },
+    {
+      label: 'PRODUCTOS',
+      action: 'productos',
+      targetId: null,
+      tooltip: 'Conoce próximamente nuestra selección de productos Sir Fausto e Idraet.'
+    },
   ];
 
   // Keep menu active state correctly aligned with current view context
   React.useEffect(() => {
     if (currentScreen === 'membresias') {
       setActiveItem('AFILIADOS');
+    } else if (currentScreen === 'cursos') {
+      setActiveItem('CURSOS');
+    } else if (currentScreen === 'productos') {
+      setActiveItem('PRODUCTOS');
     } else if (currentScreen === 'home') {
       const target = localStorage.getItem('scroll-target');
       if (target === 'servicios-especializados') {
@@ -123,8 +133,8 @@ export default function Header({
   };
 
   const isItemActive = (item: NavItem) => {
-    if (item.action === 'membresias') {
-      return currentScreen === 'membresias';
+    if (item.action === 'membresias' || item.action === 'cursos' || item.action === 'productos') {
+      return currentScreen === item.action;
     }
     if (currentScreen !== 'home') {
       return false;
