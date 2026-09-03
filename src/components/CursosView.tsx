@@ -29,7 +29,7 @@ export default function CursosView({ onNavigate }: CursosViewProps) {
         </div>
 
         {/* Maintenance Message */}
-        <div className="bg-gradient-to-br from-amber-950 to-amber-900/30 border border-amber-500/30 rounded-2xl p-10 md:p-14 text-center">
+        <div className="digital-maintenance-card rounded-2xl p-10 md:p-14 text-center">
           <div className="flex justify-center mb-6">
             <div className="relative">
               <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-2xl"></div>
