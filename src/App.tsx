@@ -85,6 +85,20 @@ const [loggedInClient, setLoggedInClient] = useState<RegisteredUser | null>(() =
   const [showFailedDetails, setShowFailedDetails] = useState(false);
 
 useEffect(() => {
+  if (!isSupabaseConfigured) return;
+  supabase.auth.getSession().then(({ data }) => {
+    setIsAdminLoggedIn(Boolean(data.session));
+    if (data.session) localStorage.setItem('xlmx_admin_logged', 'true');
+  });
+  const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    setIsAdminLoggedIn(Boolean(session));
+    if (session) localStorage.setItem('xlmx_admin_logged', 'true');
+    else localStorage.removeItem('xlmx_admin_logged');
+  });
+  return () => listener.subscription.unsubscribe();
+}, []);
+
+useEffect(() => {
     localStorage.setItem('xlmx_users', JSON.stringify(users));
   }, [users]);
 useEffect(() => {
@@ -492,6 +506,7 @@ const handleLoginSuccess = () => {
 const handleLogoutAdmin = () => {
   setIsAdminLoggedIn(false);
   localStorage.removeItem('xlmx_admin_logged');
+  if (isSupabaseConfigured) void supabase.auth.signOut();
 };
 
 const handleLogoutClient = () => {

@@ -252,15 +252,37 @@ export default function AdminLoginView({
   };
 
   // Admin login handler (Credential securitization using environment variables)
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Use environment variables for secure compile, with fallbacks to avoid service interruption
+    // Supabase Auth creates the session required by the RLS policies.
     const VALID_USER = import.meta.env.VITE_ADMIN_USER || 'xlmxbarber';
     const VALID_PASS = import.meta.env.VITE_ADMIN_PASS || '11824';
 
     const cleanUsername = sanitizeInput(username).trim();
     const cleanPassword = sanitizeInput(password).trim();
+
+    if (isSupabaseConfigured) {
+      setLoading(true);
+      setAdminErrorMsg(null);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanUsername,
+        password: cleanPassword,
+      });
+
+      if (!error) {
+        onLoginSuccess();
+        onNavigate('dashboard-admin');
+        setUsername('');
+        setPassword('');
+      } else {
+        setAdminErrorMsg('No se pudo iniciar sesión con Supabase Auth. Verifica el correo, la contraseña y el rol administrador.');
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 500);
+      }
+      setLoading(false);
+      return;
+    }
 
     if (cleanUsername === VALID_USER && cleanPassword === VALID_PASS) {
       setAdminErrorMsg(null);
