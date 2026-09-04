@@ -143,6 +143,14 @@ drop policy if exists "admins manage testimonials" on public.testimonials;
 drop policy if exists "users can view own activity" on public.user_activity;
 drop policy if exists "admins manage pages and commerce" on public.site_pages;
 drop policy if exists "owner manages administrators" on public.admins;
+drop policy if exists "editors manage categories" on public.categories;
+drop policy if exists "editors manage products" on public.products;
+drop policy if exists "editors manage courses" on public.courses;
+drop policy if exists "editors manage course sections" on public.course_sections;
+drop policy if exists "editors manage course lessons" on public.course_lessons;
+drop policy if exists "editors manage course access" on public.course_access;
+drop policy if exists "owners manage users" on public.users;
+drop policy if exists "owners manage activity" on public.user_activity;
 
 create policy "published testimonials are public" on public.testimonials
   for select using (published = true);
@@ -155,6 +163,22 @@ create policy "users can view own activity" on public.user_activity
 create policy "admins manage pages and commerce" on public.site_pages
   for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
 create policy "owner manages administrators" on public.admins
+  for all using (public.is_admin('owner')) with check (public.is_admin('owner'));
+create policy "editors manage categories" on public.categories
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "editors manage products" on public.products
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "editors manage courses" on public.courses
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "editors manage course sections" on public.course_sections
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "editors manage course lessons" on public.course_lessons
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "editors manage course access" on public.course_access
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "owners manage users" on public.users
+  for all using (public.is_admin('owner')) with check (public.is_admin('owner'));
+create policy "owners manage activity" on public.user_activity
   for all using (public.is_admin('owner')) with check (public.is_admin('owner'));
 
 insert into public.admins (id, email, role)

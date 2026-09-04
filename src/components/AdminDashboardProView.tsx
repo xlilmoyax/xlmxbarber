@@ -8,6 +8,7 @@ type ProductSection = 'Listado' | 'Subir producto' | 'Categorías' | 'Pedidos' |
 type Product = { id: string; name: string; price: number; stock: number; description: string; featured: boolean; image_url?: string; materials?: string };
 type Course = { id: string; title: string; description: string; published: boolean };
 type Order = { id: string; total: number; status: string };
+type CourseMetrics = { courses: number; sections: number; lessons: number; videos: number; accesses: number };
 type Testimonial = { id: string; author: string; quote: string; rating: number; published: boolean };
 type Props = { users: RegisteredUser[]; onLogout: () => void; onNavigate: (screen: Screen) => void; onDeleteUser: (id: string) => void; onUpdateUser: (user: RegisteredUser) => Promise<void> | void; onSyncDatabase: () => void; isSyncing: boolean };
 
@@ -26,6 +27,7 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
   const [products, setProducts] = useState<Product[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [courseMetrics, setCourseMetrics] = useState<CourseMetrics>({ courses: 0, sections: 0, lessons: 0, videos: 0, accesses: 0 });
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [productForm, setProductForm] = useState(false);
   const [query, setQuery] = useState('');
@@ -33,11 +35,14 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
 
   const loadData = async () => {
     if (!isSupabaseConfigured) { setNotice('Supabase no está configurado. Los indicadores permanecen en cero.'); return; }
-    const [productsResult, coursesResult, ordersResult, testimonialsResult] = await Promise.all([
+    const [productsResult, coursesResult, ordersResult, testimonialsResult, sectionsResult, lessonsResult, accessResult] = await Promise.all([
       supabase.from('products').select('*').order('created_at', { ascending: false }),
       supabase.from('courses').select('id,title,description,published').order('created_at', { ascending: false }),
       supabase.from('orders').select('id,total,status').order('created_at', { ascending: false }),
       supabase.from('testimonials').select('*').order('created_at', { ascending: false }),
+      supabase.from('course_sections').select('id'),
+      supabase.from('course_lessons').select('id,video_url'),
+      supabase.from('course_access').select('course_id'),
     ]);
     if (productsResult.error && productsResult.error.code !== '42P01') setNotice(productsResult.error.message);
     if (coursesResult.error && coursesResult.error.code !== '42P01') setNotice(coursesResult.error.message);
@@ -45,6 +50,13 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
     if (!coursesResult.error) setCourses((coursesResult.data || []) as Course[]);
     if (!ordersResult.error) setOrders((ordersResult.data || []) as Order[]);
     if (!testimonialsResult.error) setTestimonials((testimonialsResult.data || []) as Testimonial[]);
+    setCourseMetrics({
+      courses: coursesResult.data?.length || 0,
+      sections: sectionsResult.data?.length || 0,
+      lessons: lessonsResult.data?.length || 0,
+      videos: lessonsResult.data?.filter((lesson) => Boolean(lesson.video_url)).length || 0,
+      accesses: accessResult.data?.length || 0,
+    });
   };
   useEffect(() => { loadData(); }, []);
 
@@ -67,7 +79,7 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
         {area === 'products' && productSection === 'Métricas' && <div className="grid grid-cols-2 gap-3 md:grid-cols-6">{[['Ventas', orders.length], ['Pedidos', orders.length], ['Ingresos', `$${revenue.toLocaleString('es-AR')}`], ['Productos', products.length], ['Stock bajo', products.filter((product) => product.stock <= 5).length], ['Destacados', products.filter((product) => product.featured).length]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-5"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>}
         {area === 'products' && (productSection === 'Listado' || productSection === 'Subir producto') && <section><div className="mb-4 flex gap-2"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar productos" className="flex-1 border border-[#E8E3DA] bg-white px-3 py-2 text-sm" /><button onClick={() => setProductForm(true)} className="flex items-center gap-2 bg-[#1B1B1B] px-4 py-2 text-sm text-white"><Plus className="h-4 w-4" /> Subir producto</button></div>{productForm && <form onSubmit={saveProduct} className="mb-5 grid gap-3 border border-[#E3C27D] bg-white p-5 sm:grid-cols-2"><input name="name" required placeholder="Nombre" className="border p-2" /><input name="price" type="number" placeholder="Precio" className="border p-2" /><input name="stock" type="number" placeholder="Stock" className="border p-2" /><input name="image_url" placeholder="URL de imagen" className="border p-2" /><input name="materials" placeholder="Materiales" className="border p-2" /><textarea name="description" placeholder="Descripción" className="border p-2" /><label><input name="featured" type="checkbox" /> Producto destacado</label><button className="w-fit bg-[#C9A24D] px-4 py-2 text-sm">Guardar cambios</button></form>}{filteredProducts.length === 0 ? <EmptyState title="0 productos" text="Aún no hay registros. Carga el primer producto real del catálogo." action="Crear primer producto" /> : <div className="overflow-x-auto border border-[#E8E3DA] bg-white"><table className="w-full min-w-[600px] text-left text-sm"><thead className="border-b border-[#E8E3DA] text-xs uppercase text-[#667085]"><tr><th className="p-4">Producto</th><th className="p-4">Precio</th><th className="p-4">Stock</th><th className="p-4">Acciones</th></tr></thead><tbody>{filteredProducts.map((product) => <tr key={product.id} className="border-b border-[#E8E3DA]"><td className="p-4">{product.name}</td><td className="p-4">${product.price}</td><td className="p-4">{product.stock}</td><td className="p-4"><button onClick={() => removeProduct(product.id)} className="text-[#F50078]"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div>}</section>}
         {area === 'products' && ['Categorías', 'Pedidos', 'Portada / Hero'].includes(productSection) && <EmptyState title={`${productSection}: 0 registros`} text="Aún no hay registros reales configurados para esta subárea." action="Crear primer registro" />}
-        {area === 'courses' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">{[['Cursos', courses.length], ['Secciones', 0], ['Lecciones', 0], ['Videos', 0], ['Alumnos con acceso', 0]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-4"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>{courses.length === 0 ? <EmptyState title="0 cursos" text="Aún no hay cursos, secciones, lecciones ni videos. Comienza creando el primer curso." action="Crear primer curso" /> : courses.map((course) => <article key={course.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{course.title}</h3><p className="text-sm text-[#667085]">{course.description}</p></article>)}</section>}
+        {area === 'courses' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">{[['Cursos', courseMetrics.courses], ['Secciones', courseMetrics.sections], ['Lecciones', courseMetrics.lessons], ['Videos', courseMetrics.videos], ['Alumnos con acceso', courseMetrics.accesses]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-4"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>{courses.length === 0 ? <EmptyState title="0 cursos" text="Aún no hay cursos, secciones, lecciones ni videos. Comienza creando el primer curso." action="Crear primer curso" /> : courses.map((course) => <article key={course.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{course.title}</h3><p className="text-sm text-[#667085]">{course.description}</p></article>)}</section>}
         {area === 'pages' && <EmptyState title="Páginas listas para editar" text="Aún no hay registros de contenido en site_pages. Crea el primer bloque real para Inicio, Servicios, Aliados, Afiliados, Novedades, Cursos o Productos." action="Crear primera página" />}
         {area === 'users' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">{[['Usuarios totales', users.length], ['Nuevos usuarios', 0], ['Usuarios activos', 0], ['Promedio de edad', users.length ? Math.round(users.reduce((sum, user) => sum + user.age, 0) / users.length) : 0]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-4"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>{users.length === 0 ? <EmptyState title="0 usuarios" text="Aún no hay usuarios registrados." action="Invitar primer usuario" /> : users.map((user) => <article key={user.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{user.fullname}</h3><p className="text-sm text-[#667085]">ID: {user.id} · {user.email} · {user.age} años</p><button onClick={() => onUpdateUser(user)} className="mt-3 text-sm text-[#C9A24D]">Guardar cambios</button><button onClick={() => onDeleteUser(user.id)} className="ml-4 text-sm text-[#F50078]">Eliminar</button></article>)}</section>}
         {area === 'testimonials' && <section>{testimonials.length === 0 ? <EmptyState title="0 testimonios" text="Aún no hay reseñas. Las nuevas calificaciones aparecerán aquí para moderación." action="Ver formulario público" /> : testimonials.map((item) => <article key={item.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{item.author}</h3><p className="text-[#C9A24D]">{'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)}</p><p className="mt-2 text-sm">{item.quote}</p><button onClick={() => moderateTestimonial(item)} className="mt-3 text-sm text-[#667085]"><CheckIcon />{item.published ? 'Ocultar' : 'Aprobar'}</button><button onClick={() => removeTestimonial(item.id)} className="ml-4 text-sm text-[#F50078]">Eliminar</button></article>)}</section>}
