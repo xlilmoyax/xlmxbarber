@@ -257,8 +257,8 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                 <span className="font-bold text-zinc-900 text-base uppercase tracking-wider">Descripción</span>
                 <ChevronDown className={`h-5 w-5 text-zinc-500 transition-transform duration-300 ${openAccordion === 'descripcion' ? 'rotate-180' : ''}`} />
               </button>
-              <div className={`overflow-hidden transition-all duration-300 ${openAccordion === 'descripcion' ? 'max-h-[600px] pb-6' : 'max-h-0'}`}>
-                <p className="text-sm text-zinc-600 leading-relaxed">{selectedProduct.description}</p>
+              <div className={`overflow-hidden transition-all duration-300 ${openAccordion === 'descripcion' ? 'max-h-[1000px] pb-6' : 'max-h-0'}`}>
+                <p className="text-sm text-zinc-600 leading-relaxed whitespace-pre-wrap">{selectedProduct.description}</p>
               </div>
             </div>
 
