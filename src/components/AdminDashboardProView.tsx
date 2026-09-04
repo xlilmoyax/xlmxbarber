@@ -1,137 +1,80 @@
 import React, { useEffect, useState } from 'react';
 import { Screen, RegisteredUser } from '../types';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
-import {
-  BarChart3,
-  BookOpen,
-  ChevronDown,
-  ExternalLink,
-  FolderTree,
-  Image,
-  LayoutDashboard,
-  LogOut,
-  MessageSquareQuote,
-  Package,
-  Plus,
-  RefreshCw,
-  Settings,
-  ShoppingCart,
-  Trash2,
-  Users,
-} from 'lucide-react';
+import { BarChart3, BookOpen, ChevronDown, ExternalLink, FolderTree, Image, LayoutDashboard, LogOut, MessageSquareQuote, Package, Plus, RefreshCw, Settings, ShoppingCart, Trash2, UserCheck, Users } from 'lucide-react';
 
 type Area = 'products' | 'pages' | 'courses' | 'users' | 'testimonials' | 'settings';
-type ProductSection = 'Productos' | 'Subir producto' | 'Categorías' | 'Pedidos' | 'Portada / Hero' | 'Métricas';
+type ProductSection = 'Listado' | 'Subir producto' | 'Categorías' | 'Pedidos' | 'Portada / Hero' | 'Métricas';
 type Product = { id: string; name: string; price: number; stock: number; description: string; featured: boolean; image_url?: string; materials?: string };
-type Order = { total: number; status: string };
+type Course = { id: string; title: string; description: string; published: boolean };
+type Order = { id: string; total: number; status: string };
+type Testimonial = { id: string; author: string; quote: string; rating: number; published: boolean };
 type Props = { users: RegisteredUser[]; onLogout: () => void; onNavigate: (screen: Screen) => void; onDeleteUser: (id: string) => void; onUpdateUser: (user: RegisteredUser) => Promise<void> | void; onSyncDatabase: () => void; isSyncing: boolean };
 
 const areas: { id: Area; label: string; icon: React.ElementType }[] = [
-  { id: 'products', label: 'Productos', icon: Package },
-  { id: 'pages', label: 'Páginas', icon: LayoutDashboard },
-  { id: 'courses', label: 'Cursos', icon: BookOpen },
-  { id: 'users', label: 'Usuarios', icon: Users },
-  { id: 'testimonials', label: 'Testimonios', icon: MessageSquareQuote },
-  { id: 'settings', label: 'Ajustes', icon: Settings },
+  { id: 'products', label: 'Productos', icon: Package }, { id: 'pages', label: 'Páginas', icon: LayoutDashboard }, { id: 'courses', label: 'Cursos', icon: BookOpen }, { id: 'users', label: 'Usuarios', icon: Users }, { id: 'testimonials', label: 'Testimonios', icon: MessageSquareQuote }, { id: 'settings', label: 'Ajustes', icon: Settings },
 ];
-
 const productSections: { id: ProductSection; label: string; icon: React.ElementType }[] = [
-  { id: 'Productos', label: 'Listado de productos', icon: Package },
-  { id: 'Subir producto', label: 'Subir producto', icon: Plus },
-  { id: 'Categorías', label: 'Categorías', icon: FolderTree },
-  { id: 'Pedidos', label: 'Pedidos', icon: ShoppingCart },
-  { id: 'Portada / Hero', label: 'Portada / Hero', icon: Image },
-  { id: 'Métricas', label: 'Métricas', icon: BarChart3 },
+  { id: 'Listado', label: 'Productos', icon: Package }, { id: 'Subir producto', label: 'Subir producto', icon: Plus }, { id: 'Categorías', label: 'Categorías', icon: FolderTree }, { id: 'Pedidos', label: 'Pedidos', icon: ShoppingCart }, { id: 'Portada / Hero', label: 'Portada / Hero', icon: Image }, { id: 'Métricas', label: 'Métricas', icon: BarChart3 },
 ];
-
-const emptyProduct = { name: '', price: '', stock: '', description: '', image_url: '', materials: '', featured: false };
-
-function EmptyState({ title, text }: { title: string; text: string }) {
-  return <div className="border border-dashed border-[#E8E3DA] bg-white px-6 py-16 text-center">
-    <Package className="mx-auto mb-3 h-8 w-8 text-[#C9A24D]" />
-    <h3 className="font-display text-xl">{title}</h3>
-    <p className="mt-2 text-sm text-[#667085]">{text}</p>
-  </div>;
-}
+const EmptyState = ({ title, text, action }: { title: string; text: string; action?: string }) => <div className="border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center"><Package className="mx-auto mb-3 h-8 w-8 text-[#C9A24D]" /><h3 className="font-display text-xl">{title}</h3><p className="mx-auto mt-2 max-w-md text-sm text-[#667085]">{text}</p>{action && <button className="mt-5 bg-[#C9A24D] px-4 py-2 text-sm text-[#151515]"><Plus className="mr-1 inline h-4 w-4" />{action}</button>}</div>;
 
 export default function AdminDashboardProView({ users, onLogout, onNavigate, onDeleteUser, onUpdateUser, onSyncDatabase, isSyncing }: Props) {
   const [area, setArea] = useState<Area>('products');
   const [productsOpen, setProductsOpen] = useState(true);
-  const [productSection, setProductSection] = useState<ProductSection>('Productos');
+  const [productSection, setProductSection] = useState<ProductSection>('Listado');
   const [products, setProducts] = useState<Product[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [productForm, setProductForm] = useState<typeof emptyProduct | null>(null);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [productForm, setProductForm] = useState(false);
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
 
-  const loadCommerceData = async () => {
-    if (!isSupabaseConfigured) return;
-    const [productsResult, ordersResult] = await Promise.all([
+  const loadData = async () => {
+    if (!isSupabaseConfigured) { setNotice('Supabase no está configurado. Los indicadores permanecen en cero.'); return; }
+    const [productsResult, coursesResult, ordersResult, testimonialsResult] = await Promise.all([
       supabase.from('products').select('*').order('created_at', { ascending: false }),
-      supabase.from('orders').select('total,status').order('created_at', { ascending: false }),
+      supabase.from('courses').select('id,title,description,published').order('created_at', { ascending: false }),
+      supabase.from('orders').select('id,total,status').order('created_at', { ascending: false }),
+      supabase.from('testimonials').select('*').order('created_at', { ascending: false }),
     ]);
-    if (productsResult.error) setNotice(productsResult.error.message);
-    else setProducts((productsResult.data || []) as Product[]);
+    if (productsResult.error && productsResult.error.code !== '42P01') setNotice(productsResult.error.message);
+    if (coursesResult.error && coursesResult.error.code !== '42P01') setNotice(coursesResult.error.message);
+    if (!productsResult.error) setProducts((productsResult.data || []) as Product[]);
+    if (!coursesResult.error) setCourses((coursesResult.data || []) as Course[]);
     if (!ordersResult.error) setOrders((ordersResult.data || []) as Order[]);
+    if (!testimonialsResult.error) setTestimonials((testimonialsResult.data || []) as Testimonial[]);
   };
-
-  useEffect(() => {
-    loadCommerceData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const saveProduct = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!productForm || !isSupabaseConfigured) return;
-    const result = await supabase.from('products').insert({
-      ...productForm,
-      price: Number(productForm.price) || 0,
-      stock: Number(productForm.stock) || 0,
-    });
-    if (result.error) setNotice(result.error.message);
-    else {
-      setProductForm(null);
-      setNotice('Producto guardado correctamente.');
-      await loadCommerceData();
-    }
+    const data = new FormData(event.currentTarget);
+    const result = await supabase.from('products').insert({ name: data.get('name'), description: data.get('description'), price: Number(data.get('price')) || 0, stock: Number(data.get('stock')) || 0, image_url: data.get('image_url') || '', materials: data.get('materials') || '', featured: data.get('featured') === 'on' });
+    if (result.error) setNotice(result.error.message); else { setProductForm(false); setNotice('Producto guardado.'); await loadData(); }
   };
-
-  const removeProduct = async (id: string) => {
-    if (!confirm('¿Eliminar este producto?')) return;
-    const result = await supabase.from('products').delete().eq('id', id);
-    if (result.error) setNotice(result.error.message);
-    else await loadCommerceData();
-  };
-
-  const filteredProducts = products.filter((product) =>
-    `${product.name} ${product.description}`.toLowerCase().includes(query.toLowerCase()),
-  );
+  const removeProduct = async (id: string) => { if (!confirm('¿Eliminar este producto?')) return; const result = await supabase.from('products').delete().eq('id', id); if (result.error) setNotice(result.error.message); else await loadData(); };
+  const moderateTestimonial = async (item: Testimonial) => { const result = await supabase.from('testimonials').update({ published: !item.published }).eq('id', item.id); if (result.error) setNotice(result.error.message); else await loadData(); };
+  const removeTestimonial = async (id: string) => { if (!confirm('¿Eliminar esta reseña?')) return; const result = await supabase.from('testimonials').delete().eq('id', id); if (result.error) setNotice(result.error.message); else await loadData(); };
+  const filteredProducts = products.filter((product) => `${product.name} ${product.description}`.toLowerCase().includes(query.toLowerCase()));
   const revenue = orders.reduce((total, order) => total + Number(order.total || 0), 0);
 
   return <div className="min-h-screen bg-[#FAF9F6] text-[#151515]">
-    <header className="bg-[#1B1B1B] px-4 py-5 text-white sm:px-8">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-        <div><p className="text-xs uppercase tracking-[.25em] text-[#E3C27D]">XLMX Barber</p><h1 className="font-display text-2xl">Panel administrativo</h1></div>
-        <div className="flex gap-2"><button onClick={() => onNavigate('home')} className="flex items-center gap-2 border border-white/20 px-3 py-2 text-sm"><ExternalLink className="h-4 w-4" /> Ver sitio</button><button onClick={() => { onLogout(); onNavigate('home'); }} className="flex items-center gap-2 bg-[#C9A24D] px-3 py-2 text-sm text-[#151515]"><LogOut className="h-4 w-4" /> Cerrar sesión</button></div>
-      </div>
-    </header>
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-8 lg:flex-row">
-      <aside className="w-full shrink-0 lg:w-60">
-        <nav className="space-y-1">{areas.map(({ id, label, icon: Icon }) => id === 'products' ? <div key={id}><button onClick={() => { setArea(id); setProductsOpen((open) => !open); }} className={`flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-sm ${area === id ? 'bg-[#1B1B1B] text-white' : 'text-[#667085] hover:bg-white'}`}><span className="flex items-center gap-3"><Icon className="h-4 w-4" />{label}</span><ChevronDown className={`h-4 w-4 transition-transform ${productsOpen ? 'rotate-180' : ''}`} /></button>{area === 'products' && productsOpen && <div className="mt-1 space-y-1 border-l-2 border-[#E3C27D] pl-3">{productSections.map(({ id: sectionId, label: sectionLabel, icon: SectionIcon }) => <button key={sectionId} onClick={() => setProductSection(sectionId)} className={`flex w-full items-center gap-2 px-2 py-2 text-left text-xs ${productSection === sectionId ? 'font-semibold text-[#151515]' : 'text-[#667085]'}`}><SectionIcon className="h-3.5 w-3.5" />{sectionLabel}</button>)}</div>}</div> : <button key={id} onClick={() => setArea(id)} className={`flex w-full items-center gap-3 px-3 py-3 text-left text-sm ${area === id ? 'bg-[#1B1B1B] text-white' : 'text-[#667085] hover:bg-white'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>
-      </aside>
-      <main className="min-w-0 flex-1">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-[.2em] text-[#C9A24D]">Control del sitio</p><h2 className="font-display text-3xl">{areas.find((item) => item.id === area)?.label}</h2></div><button onClick={() => { onSyncDatabase(); loadCommerceData(); }} className="flex items-center gap-2 border border-[#E8E3DA] bg-white px-3 py-2 text-sm text-[#667085]"><RefreshCw className={isSyncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} /> Actualizar</button></div>
-        {notice && <p className="mb-4 border border-[#E3C27D] bg-[#FFF9E9] p-3 text-sm">{notice}</p>}
+    <header className="bg-[#1B1B1B] px-4 py-5 text-white sm:px-8"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4"><div><p className="text-xs uppercase tracking-[.25em] text-[#E3C27D]">XLMX Barber</p><h1 className="font-display text-2xl">Panel administrativo</h1></div><div className="flex gap-2"><button onClick={() => onNavigate('home')} className="flex items-center gap-2 border border-white/20 px-3 py-2 text-sm"><ExternalLink className="h-4 w-4" /> Ver sitio</button><button onClick={() => { onLogout(); onNavigate('home'); }} className="flex items-center gap-2 bg-[#C9A24D] px-3 py-2 text-sm text-[#151515]"><LogOut className="h-4 w-4" /> Cerrar sesión</button></div></div></header>
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-8 lg:flex-row"><aside className="w-full shrink-0 lg:w-60"><nav className="space-y-1">{areas.map(({ id, label, icon: Icon }) => id === 'products' ? <div key={id}><button onClick={() => { setArea(id); setProductsOpen((open) => !open); }} className={`flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-sm ${area === id ? 'bg-[#1B1B1B] text-white' : 'text-[#667085] hover:bg-white'}`}><span className="flex items-center gap-3"><Icon className="h-4 w-4" />{label}</span><ChevronDown className={`h-4 w-4 transition-transform ${productsOpen ? 'rotate-180' : ''}`} /></button>{area === 'products' && productsOpen && <div className="mt-1 space-y-1 border-l-2 border-[#E3C27D] pl-3">{productSections.map(({ id: sectionId, label: sectionLabel, icon: SectionIcon }) => <button key={sectionId} onClick={() => setProductSection(sectionId)} className={`flex w-full items-center gap-2 px-2 py-2 text-left text-xs ${productSection === sectionId ? 'font-semibold text-[#151515]' : 'text-[#667085]'}`}><SectionIcon className="h-3.5 w-3.5" />{sectionLabel}</button>)}</div>}</div> : <button key={id} onClick={() => setArea(id)} className={`flex w-full items-center gap-3 px-3 py-3 text-left text-sm ${area === id ? 'bg-[#1B1B1B] text-white' : 'text-[#667085] hover:bg-white'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav></aside>
+      <main className="min-w-0 flex-1"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-[.2em] text-[#C9A24D]">Control del sitio</p><h2 className="font-display text-3xl">{areas.find((item) => item.id === area)?.label}</h2></div><button onClick={() => { onSyncDatabase(); loadData(); }} className="flex items-center gap-2 border border-[#E8E3DA] bg-white px-3 py-2 text-sm text-[#667085]"><RefreshCw className={isSyncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} /> Actualizar</button></div>{notice && <p className="mb-4 border border-[#E3C27D] bg-[#FFF9E9] p-3 text-sm">{notice}</p>}
         {area === 'products' && productSection === 'Métricas' && <div className="grid grid-cols-2 gap-3 md:grid-cols-6">{[['Ventas', orders.length], ['Pedidos', orders.length], ['Ingresos', `$${revenue.toLocaleString('es-AR')}`], ['Productos', products.length], ['Stock bajo', products.filter((product) => product.stock <= 5).length], ['Destacados', products.filter((product) => product.featured).length]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-5"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>}
-        {area === 'products' && (productSection === 'Productos' || productSection === 'Subir producto') && <section><div className="mb-4 flex gap-2"><div className="relative flex-1"><SearchIcon /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar productos" className="w-full border border-[#E8E3DA] bg-white px-3 py-2 pl-9 text-sm" /></div></div>{productForm && <form onSubmit={saveProduct} className="mb-5 grid gap-3 border border-[#E3C27D] bg-white p-5 sm:grid-cols-2"><input name="name" required placeholder="Nombre" className="border border-[#E8E3DA] p-2" value={productForm.name} onChange={(event) => setProductForm({ ...productForm, name: event.target.value })} /><input name="price" type="number" min="0" placeholder="Precio" className="border border-[#E8E3DA] p-2" value={productForm.price} onChange={(event) => setProductForm({ ...productForm, price: event.target.value })} /><input name="stock" type="number" min="0" placeholder="Stock" className="border border-[#E8E3DA] p-2" value={productForm.stock} onChange={(event) => setProductForm({ ...productForm, stock: event.target.value })} /><input name="image_url" placeholder="Imagen URL" className="border border-[#E8E3DA] p-2" value={productForm.image_url} onChange={(event) => setProductForm({ ...productForm, image_url: event.target.value })} /><input name="materials" placeholder="Materiales" className="border border-[#E8E3DA] p-2" value={productForm.materials} onChange={(event) => setProductForm({ ...productForm, materials: event.target.value })} /><textarea name="description" placeholder="Descripción" className="border border-[#E8E3DA] p-2" value={productForm.description} onChange={(event) => setProductForm({ ...productForm, description: event.target.value })} /><label className="flex items-center gap-2 text-sm"><input name="featured" type="checkbox" checked={productForm.featured} onChange={(event) => setProductForm({ ...productForm, featured: event.target.checked })} /> Producto destacado</label><div className="flex gap-2 sm:col-span-2"><button type="submit" className="bg-[#C9A24D] px-4 py-2 text-sm">Guardar cambios</button><button type="button" onClick={() => setProductForm(null)} className="border px-4 py-2 text-sm">Cancelar</button></div></form>}{filteredProducts.length === 0 ? <EmptyState title="Sin productos" text="No hay datos reales cargados." /> : <div className="overflow-x-auto border border-[#E8E3DA] bg-white"><table className="w-full min-w-[600px] text-left text-sm"><thead className="border-b border-[#E8E3DA] text-xs uppercase text-[#667085]"><tr><th className="p-4">Producto</th><th className="p-4">Precio</th><th className="p-4">Stock</th><th className="p-4">Acciones</th></tr></thead><tbody>{filteredProducts.map((product) => <tr key={product.id} className="border-b border-[#E8E3DA]"><td className="p-4">{product.name}</td><td className="p-4">${product.price}</td><td className="p-4">{product.stock}</td><td className="p-4"><button onClick={() => setProductForm({ ...product, price: String(product.price), stock: String(product.stock), image_url: product.image_url || '', materials: product.materials || '' })} className="mr-3 text-[#667085]">Editar</button><button onClick={() => removeProduct(product.id)} className="text-[#F50078]"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div>}</section>}
-        {area === 'products' && ['Categorías', 'Pedidos', 'Portada / Hero'].includes(productSection) && <EmptyState title="Sin datos configurados" text="Esta sección mostrará únicamente datos reales de Supabase." />}
-        {area === 'courses' && <EmptyState title="Sin cursos" text="Cursos, secciones, lecciones, videos y accesos se cargarán desde Supabase." />}
-        {area === 'pages' && <EmptyState title="Sin páginas" text="Las páginas se cargarán desde site_pages sin datos ficticios." />}
-        {area === 'users' && (users.length ? users.map((user) => <article key={user.id} className="mb-3 border border-[#E8E3DA] bg-white p-4"><p className="font-display text-xl">{user.fullname}</p><p className="text-sm text-[#667085]">ID: {user.id} · {user.email} · {user.age} años</p><button onClick={() => onUpdateUser(user)} className="mt-2 text-sm text-[#C9A24D]">Guardar cambios</button><button onClick={() => onDeleteUser(user.id)} className="ml-4 text-sm text-[#F50078]">Eliminar</button></article>) : <EmptyState title="Sin usuarios" text="Los usuarios reales aparecerán aquí al registrarse." />)}
-        {area === 'testimonials' && <EmptyState title="Sin testimonios" text="Las reseñas reales aparecerán aquí para moderación." />}
-        {area === 'settings' && <EmptyState title="Ajustes protegidos" text="Roles, contraseñas, copias e integraciones requieren Supabase Auth, RLS y backend seguro." />}
+        {area === 'products' && (productSection === 'Listado' || productSection === 'Subir producto') && <section><div className="mb-4 flex gap-2"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar productos" className="flex-1 border border-[#E8E3DA] bg-white px-3 py-2 text-sm" /><button onClick={() => setProductForm(true)} className="flex items-center gap-2 bg-[#1B1B1B] px-4 py-2 text-sm text-white"><Plus className="h-4 w-4" /> Subir producto</button></div>{productForm && <form onSubmit={saveProduct} className="mb-5 grid gap-3 border border-[#E3C27D] bg-white p-5 sm:grid-cols-2"><input name="name" required placeholder="Nombre" className="border p-2" /><input name="price" type="number" placeholder="Precio" className="border p-2" /><input name="stock" type="number" placeholder="Stock" className="border p-2" /><input name="image_url" placeholder="URL de imagen" className="border p-2" /><input name="materials" placeholder="Materiales" className="border p-2" /><textarea name="description" placeholder="Descripción" className="border p-2" /><label><input name="featured" type="checkbox" /> Producto destacado</label><button className="w-fit bg-[#C9A24D] px-4 py-2 text-sm">Guardar cambios</button></form>}{filteredProducts.length === 0 ? <EmptyState title="0 productos" text="Aún no hay registros. Carga el primer producto real del catálogo." action="Crear primer producto" /> : <div className="overflow-x-auto border border-[#E8E3DA] bg-white"><table className="w-full min-w-[600px] text-left text-sm"><thead className="border-b border-[#E8E3DA] text-xs uppercase text-[#667085]"><tr><th className="p-4">Producto</th><th className="p-4">Precio</th><th className="p-4">Stock</th><th className="p-4">Acciones</th></tr></thead><tbody>{filteredProducts.map((product) => <tr key={product.id} className="border-b border-[#E8E3DA]"><td className="p-4">{product.name}</td><td className="p-4">${product.price}</td><td className="p-4">{product.stock}</td><td className="p-4"><button onClick={() => removeProduct(product.id)} className="text-[#F50078]"><Trash2 className="h-4 w-4" /></button></td></tr>)}</tbody></table></div>}</section>}
+        {area === 'products' && ['Categorías', 'Pedidos', 'Portada / Hero'].includes(productSection) && <EmptyState title={`${productSection}: 0 registros`} text="Aún no hay registros reales configurados para esta subárea." action="Crear primer registro" />}
+        {area === 'courses' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">{[['Cursos', courses.length], ['Secciones', 0], ['Lecciones', 0], ['Videos', 0], ['Alumnos con acceso', 0]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-4"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>{courses.length === 0 ? <EmptyState title="0 cursos" text="Aún no hay cursos, secciones, lecciones ni videos. Comienza creando el primer curso." action="Crear primer curso" /> : courses.map((course) => <article key={course.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{course.title}</h3><p className="text-sm text-[#667085]">{course.description}</p></article>)}</section>}
+        {area === 'pages' && <EmptyState title="Páginas listas para editar" text="Aún no hay registros de contenido en site_pages. Crea el primer bloque real para Inicio, Servicios, Aliados, Afiliados, Novedades, Cursos o Productos." action="Crear primera página" />}
+        {area === 'users' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">{[['Usuarios totales', users.length], ['Nuevos usuarios', 0], ['Usuarios activos', 0], ['Promedio de edad', users.length ? Math.round(users.reduce((sum, user) => sum + user.age, 0) / users.length) : 0]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-4"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>{users.length === 0 ? <EmptyState title="0 usuarios" text="Aún no hay usuarios registrados." action="Invitar primer usuario" /> : users.map((user) => <article key={user.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{user.fullname}</h3><p className="text-sm text-[#667085]">ID: {user.id} · {user.email} · {user.age} años</p><button onClick={() => onUpdateUser(user)} className="mt-3 text-sm text-[#C9A24D]">Guardar cambios</button><button onClick={() => onDeleteUser(user.id)} className="ml-4 text-sm text-[#F50078]">Eliminar</button></article>)}</section>}
+        {area === 'testimonials' && <section>{testimonials.length === 0 ? <EmptyState title="0 testimonios" text="Aún no hay reseñas. Las nuevas calificaciones aparecerán aquí para moderación." action="Ver formulario público" /> : testimonials.map((item) => <article key={item.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{item.author}</h3><p className="text-[#C9A24D]">{'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)}</p><p className="mt-2 text-sm">{item.quote}</p><button onClick={() => moderateTestimonial(item)} className="mt-3 text-sm text-[#667085]"><CheckIcon />{item.published ? 'Ocultar' : 'Aprobar'}</button><button onClick={() => removeTestimonial(item.id)} className="ml-4 text-sm text-[#F50078]">Eliminar</button></article>)}</section>}
+        {area === 'settings' && <section className="grid gap-4 md:grid-cols-2"><div className="border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">Seguridad y roles</h3><p className="mt-3 text-sm text-[#667085]">Los roles owner/editor y los administradores se protegen con Supabase Auth y RLS.</p><span className="mt-4 inline-block bg-[#FFF4CC] px-3 py-2 text-xs text-[#8A6514]">Sin credenciales expuestas</span></div><div className="border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">Copias de seguridad</h3><p className="mt-3 text-sm text-[#667085]">Aún no hay copias configuradas. La exportación e importación se ejecutará mediante funciones seguras.</p><button className="mt-4 bg-[#1B1B1B] px-4 py-2 text-sm text-white">Configurar backup</button></div><div className="border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">Conexiones</h3><p className="mt-3 text-sm text-[#667085]">Supabase: {isSupabaseConfigured ? 'Configurado' : 'No configurado'}</p><p className="text-sm text-[#667085]">GitHub: workflow protegido</p><button onClick={onSyncDatabase} className="mt-4 bg-[#C9A24D] px-4 py-2 text-sm">Aplicar cambios</button></div></section>}
       </main>
     </div>
   </div>;
 }
 
-function SearchIcon() { return <span className="pointer-events-none absolute left-3 top-2.5 text-[#667085]">⌕</span>; }
+function CheckIcon() { return <span className="mr-1 inline-block">✓</span>; }

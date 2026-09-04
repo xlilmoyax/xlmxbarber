@@ -157,4 +157,11 @@ create policy "admins manage pages and commerce" on public.site_pages
 create policy "owner manages administrators" on public.admins
   for all using (public.is_admin('owner')) with check (public.is_admin('owner'));
 
+insert into public.admins (id, email, role)
+select id, email, 'owner'
+from auth.users
+where lower(email) = 'matymoya18@gmail.com'
+on conflict (id) do update
+set email = excluded.email, role = 'owner';
+
 -- Aplicar políticas según el método de autenticación administrativa antes de producción.
