@@ -62,7 +62,7 @@ export default function App() {
 const [users, setUsers] = useState<RegisteredUser[]>(() => {
     const savedUsers = localStorage.getItem('xlmx_users');
     try {
-      return savedUsers ? JSON.parse(savedUsers) : isSupabaseConfigured ? [] : INITIAL_USERS;
+      return savedUsers ? JSON.parse(savedUsers) : INITIAL_USERS;
     } catch {
       localStorage.removeItem('xlmx_users');
       return INITIAL_USERS;

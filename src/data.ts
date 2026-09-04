@@ -28,38 +28,7 @@ import localLatestNewsPost from './assets/images/latestNewsPost.jpg';
 import sirFaustoMaskImg from './assets/images/sir_fausto_mask.jpg';
 
 // Let's keep the initial registered clients list completely empty on startup
-export const INITIAL_USERS: RegisteredUser[] = [
-  {
-    id: 'user-gold',
-    fullname: 'Cliente Gold VIP',
-    email: 'gold@xlmx.com',
-    age: 25,
-    phone: '123456789',
-    isSocio: true,
-    membership: 'gold',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'user-plata',
-    fullname: 'Cliente Plata Premium',
-    email: 'plata@xlmx.com',
-    age: 30,
-    phone: '123456789',
-    isSocio: true,
-    membership: 'plata',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'user-bronce',
-    fullname: 'Cliente Bronce Tradicional',
-    email: 'bronce@xlmx.com',
-    age: 35,
-    phone: '123456789',
-    isSocio: true,
-    membership: 'bronce',
-    createdAt: new Date().toISOString()
-  }
-];
+export const INITIAL_USERS: RegisteredUser[] = [];
 
 export const IMAGES = {
   // Screen 1: Tradición y excelencia Hero (Scissors and comb)
