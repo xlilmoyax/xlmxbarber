@@ -189,3 +189,4 @@ on conflict (id) do update
 set email = excluded.email, role = 'owner';
 
 -- Aplicar políticas según el método de autenticación administrativa antes de producción.
+
