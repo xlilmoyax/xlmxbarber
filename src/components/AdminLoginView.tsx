@@ -265,8 +265,11 @@ export default function AdminLoginView({
     if (isSupabaseConfigured) {
       setLoading(true);
       setAdminErrorMsg(null);
+      const authEmail = cleanUsername.toLowerCase() === 'xlmxbarber'
+        ? 'matymoya18@gmail.com'
+        : cleanUsername;
       const { error } = await supabase.auth.signInWithPassword({
-        email: cleanUsername,
+        email: authEmail,
         password: cleanPassword,
       });
 
