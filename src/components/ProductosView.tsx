@@ -3,15 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Screen } from '../types';
 import { Package, Sparkles } from 'lucide-react';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 interface ProductosViewProps {
   onNavigate: (screen: Screen) => void;
 }
 
 export default function ProductosView({ onNavigate }: ProductosViewProps) {
+  const [products, setProducts] = useState<Array<{ id: string; name: string; description: string; price: number; image_url: string; image_urls?: string[] }>>([]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    supabase.from('products').select('id,name,description,price,image_url,image_urls').eq('status', 'published').order('created_at', { ascending: false })
+      .then(({ data }) => setProducts(data || []));
+  }, []);
+
   return (
     <section className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 px-4 py-20">
       <div className="max-w-4xl mx-auto">
@@ -27,7 +36,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
           </p>
         </div>
 
-        <div className="digital-maintenance-card rounded-2xl p-10 md:p-14 text-center">
+        {products.length === 0 && <div className="digital-maintenance-card rounded-2xl p-10 md:p-14 text-center">
           <div className="flex justify-center mb-6">
             <div className="relative">
               <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-2xl"></div>
@@ -53,7 +62,14 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
           >
             Volver al inicio
           </button>
-        </div>
+        </div>}
+
+        {products.length > 0 && <div className="grid gap-6 sm:grid-cols-2">
+          {products.map((product) => <article key={product.id} className="overflow-hidden rounded-lg border border-amber-500/20 bg-zinc-900/70">
+            {(product.image_urls?.[0] || product.image_url) && <img src={product.image_urls?.[0] || product.image_url} alt={product.name} className="aspect-square w-full object-cover" />}
+            <div className="p-5"><h2 className="text-xl font-bold text-amber-300">{product.name}</h2><p className="mt-2 text-sm text-zinc-400">{product.description}</p><p className="mt-4 text-lg font-semibold text-amber-100">${Number(product.price).toLocaleString('es-AR')}</p></div>
+          </article>)}
+        </div>}
 
         <div className="grid sm:grid-cols-2 gap-6 mt-14">
           <div className="bg-zinc-900/50 border border-amber-500/20 rounded-lg p-6 text-center">

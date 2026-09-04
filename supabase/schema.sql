@@ -9,14 +9,29 @@ create table if not exists public.products (
   name text not null,
   description text not null default '',
   price numeric(12,2) not null default 0 check (price >= 0),
+  original_price numeric(12,2) check (original_price is null or original_price >= 0),
   stock integer not null default 0 check (stock >= 0),
   category_id uuid references public.categories(id) on delete set null,
   image_url text not null default '',
   materials text not null default '',
+  highlights text not null default '',
+  status text not null default 'draft' check (status in ('draft', 'published', 'sold_out', 'archived')),
   featured boolean not null default false,
+  is_new boolean not null default false,
+  free_shipping boolean not null default false,
+  customizable boolean not null default false,
+  image_urls jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.products add column if not exists original_price numeric(12,2);
+alter table public.products add column if not exists highlights text not null default '';
+alter table public.products add column if not exists status text not null default 'draft';
+alter table public.products add column if not exists is_new boolean not null default false;
+alter table public.products add column if not exists free_shipping boolean not null default false;
+alter table public.products add column if not exists customizable boolean not null default false;
+alter table public.products add column if not exists image_urls jsonb not null default '[]'::jsonb;
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
@@ -137,6 +152,23 @@ as $$
   );
 $$;
 
+insert into storage.buckets (id, name, public)
+values ('product-images', 'product-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "public can view product images" on storage.objects;
+drop policy if exists "editors upload product images" on storage.objects;
+drop policy if exists "editors update product images" on storage.objects;
+drop policy if exists "editors delete product images" on storage.objects;
+create policy "public can view product images" on storage.objects
+  for select using (bucket_id = 'product-images');
+create policy "editors upload product images" on storage.objects
+  for insert with check (bucket_id = 'product-images' and public.is_admin('editor'));
+create policy "editors update product images" on storage.objects
+  for update using (bucket_id = 'product-images' and public.is_admin('editor'));
+create policy "editors delete product images" on storage.objects
+  for delete using (bucket_id = 'product-images' and public.is_admin('editor'));
+
 drop policy if exists "published testimonials are public" on public.testimonials;
 drop policy if exists "visitors can submit testimonials" on public.testimonials;
 drop policy if exists "admins manage testimonials" on public.testimonials;
@@ -145,6 +177,7 @@ drop policy if exists "admins manage pages and commerce" on public.site_pages;
 drop policy if exists "owner manages administrators" on public.admins;
 drop policy if exists "editors manage categories" on public.categories;
 drop policy if exists "editors manage products" on public.products;
+drop policy if exists "public can view published products" on public.products;
 drop policy if exists "editors manage courses" on public.courses;
 drop policy if exists "editors manage course sections" on public.course_sections;
 drop policy if exists "editors manage course lessons" on public.course_lessons;
@@ -168,6 +201,8 @@ create policy "editors manage categories" on public.categories
   for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
 create policy "editors manage products" on public.products
   for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "public can view published products" on public.products
+  for select using (status = 'published');
 create policy "editors manage courses" on public.courses
   for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
 create policy "editors manage course sections" on public.course_sections
