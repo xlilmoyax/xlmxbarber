@@ -13,12 +13,16 @@ interface ProductosViewProps {
 }
 
 export default function ProductosView({ onNavigate }: ProductosViewProps) {
-  const [products, setProducts] = useState<Array<{ id: string; name: string; description: string; price: number; image_url: string; image_urls?: string[] }>>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string; description: string; price: number; original_price?: number | null; category_id?: string; materials?: string; highlights?: string; status?: string; featured?: boolean; is_new?: boolean; free_shipping?: boolean; customizable?: boolean; image_url: string; image_urls?: string[]; category?: { name: string } | null }>>([]);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    supabase.from('products').select('id,name,description,price,image_url,image_urls').eq('status', 'published').order('created_at', { ascending: false })
-      .then(({ data }) => setProducts(data || []));
+    supabase.from('products').select('id,name,description,price,original_price,category_id,materials,highlights,status,featured,is_new,free_shipping,customizable,image_url,image_urls,category:categories(name)').eq('status', 'published').order('created_at', { ascending: false })
+      .then(({ data }) => setProducts((data || []).map((product) => ({
+        ...product,
+        category: Array.isArray(product.category) ? product.category[0] || null : product.category,
+      }))));
   }, []);
 
   return (
@@ -67,9 +71,17 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
         {products.length > 0 && <div className="grid gap-6 sm:grid-cols-2">
           {products.map((product) => <article key={product.id} className="overflow-hidden rounded-lg border border-amber-500/20 bg-zinc-900/70">
             {(product.image_urls?.[0] || product.image_url) && <img src={product.image_urls?.[0] || product.image_url} alt={product.name} className="aspect-square w-full object-cover" />}
-            <div className="p-5"><h2 className="text-xl font-bold text-amber-300">{product.name}</h2><p className="mt-2 text-sm text-zinc-400">{product.description}</p><p className="mt-4 text-lg font-semibold text-amber-100">${Number(product.price).toLocaleString('es-AR')}</p></div>
+            <div className="p-5"><div className="mb-2 flex flex-wrap gap-2">{product.category?.name && <span className="rounded-full border border-amber-400/30 px-2 py-1 text-xs text-amber-300">{product.category.name}</span>}{product.is_new && <span className="rounded-full bg-amber-400 px-2 py-1 text-xs font-bold text-zinc-900">Nuevo</span>}{product.featured && <span className="rounded-full border border-amber-400 px-2 py-1 text-xs text-amber-300">Destacado</span>}</div><h2 className="text-xl font-bold text-amber-300">{product.name}</h2><p className="mt-2 line-clamp-2 text-sm text-zinc-400">{product.description}</p><div className="mt-4 flex items-end gap-3"><p className="text-lg font-semibold text-amber-100">${Number(product.price).toLocaleString('es-AR')}</p>{product.original_price && product.original_price > product.price && <p className="text-sm text-zinc-500 line-through">${Number(product.original_price).toLocaleString('es-AR')}</p>}</div><button onClick={() => setSelectedProduct(product.id)} className="mt-5 w-full border border-amber-400 px-4 py-2 text-xs font-bold uppercase tracking-widest text-amber-300 transition-colors hover:bg-amber-400 hover:text-zinc-950">Ver detalle</button></div>
           </article>)}
         </div>}
+
+        {selectedProduct && (() => {
+          const product = products.find((item) => item.id === selectedProduct);
+          if (!product) return null;
+          const highlights = (product.highlights || '').split('\n').map((item) => item.trim()).filter(Boolean);
+          const gallery = product.image_urls?.length ? product.image_urls : product.image_url ? [product.image_url] : [];
+          return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 px-4 py-8" role="dialog" aria-modal="true" aria-label={`Detalle de ${product.name}`}><article className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-amber-400/30 bg-zinc-950 shadow-2xl"><div className="flex items-center justify-between border-b border-amber-400/20 px-5 py-4"><div><p className="text-xs uppercase tracking-widest text-amber-400">Ficha del producto</p><h2 className="font-display text-2xl text-white">{product.name}</h2></div><button onClick={() => setSelectedProduct(null)} className="px-3 py-2 text-2xl text-zinc-400 hover:text-white" aria-label="Cerrar detalle">×</button></div><div className="grid gap-8 p-5 md:grid-cols-2 md:p-8"><div>{gallery.length > 0 ? <div className="grid grid-cols-2 gap-3">{gallery.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${product.name} ${index + 1}`} className="aspect-square w-full rounded-lg object-cover" />)}</div> : <div className="flex aspect-square items-center justify-center rounded-lg border border-amber-400/20 text-zinc-500">Sin imagen disponible</div>}</div><div><div className="mb-4 flex flex-wrap gap-2">{product.category?.name && <span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-300">{product.category.name}</span>}{product.is_new && <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-zinc-900">Producto nuevo</span>}{product.featured && <span className="rounded-full border border-amber-400 px-3 py-1 text-xs text-amber-300">Destacado</span>}</div><p className="text-3xl font-semibold text-amber-200">${Number(product.price).toLocaleString('es-AR')}</p>{product.original_price && product.original_price > product.price && <p className="mt-1 text-sm text-zinc-500 line-through">Precio de lista: ${Number(product.original_price).toLocaleString('es-AR')}</p>}<p className="mt-6 leading-relaxed text-zinc-300">{product.description}</p><dl className="mt-6 space-y-3 border-y border-amber-400/20 py-5 text-sm"><div className="flex justify-between gap-4"><dt className="text-zinc-500">Material</dt><dd className="text-right text-zinc-200">{product.materials || 'No especificado'}</dd></div><div className="flex justify-between gap-4"><dt className="text-zinc-500">Disponibilidad</dt><dd className="text-right text-emerald-300">{product.status === 'published' ? 'Disponible' : product.status}</dd></div>{product.free_shipping && <div className="text-amber-300">Envío gratis</div>}{product.customizable && <div className="text-amber-300">Permite personalización</div>}</dl>{highlights.length > 0 && <div className="mt-6"><h3 className="font-display text-xl text-amber-300">Ficha técnica</h3><ul className="mt-3 space-y-2 text-sm text-zinc-300">{highlights.map((item, index) => <li key={`${item}-${index}`} className="border-l-2 border-amber-400/50 pl-3">{item}</li>)}</ul></div>}</div></div></article></div>;
+        })()}
 
         <div className="grid sm:grid-cols-2 gap-6 mt-14">
           <div className="bg-zinc-900/50 border border-amber-500/20 rounded-lg p-6 text-center">
