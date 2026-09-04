@@ -144,7 +144,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
       .slice(0, 4);
 
     return (
-      <div className="min-h-screen bg-[#FAF9F6] pt-24 pb-16">
+      <div className="min-h-screen bg-white pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Migas de pan */}
@@ -162,22 +162,24 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
           <div className="grid lg:grid-cols-2 gap-12 mb-20">
             {/* Galería */}
-            <div className="flex flex-col-reverse lg:flex-row gap-4">
-              <div className="flex lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto lg:max-h-[600px] no-scrollbar">
-                {images.map((img, idx) => (
-                  <button 
-                    key={idx} 
-                    onClick={() => setActiveImageIndex(idx)}
-                    className={`shrink-0 w-20 h-24 object-cover border-2 transition-all ${activeImageIndex === idx ? 'border-amber-500' : 'border-transparent hover:border-zinc-300'}`}
-                  >
-                    <img src={img} alt={`Miniatura ${idx + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-              <div className="flex-1 bg-white aspect-[4/5] lg:aspect-auto lg:h-[600px] border border-zinc-100 flex items-center justify-center relative overflow-hidden group">
+            <div className="flex flex-col gap-4">
+              <div className="w-full bg-[#FAF9F6] aspect-[4/3] sm:aspect-square lg:aspect-auto lg:h-[500px] border border-zinc-100 flex items-center justify-center relative overflow-hidden group">
                 <img src={images[activeImageIndex]} alt={selectedProduct.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 {selectedProduct.is_new && <span className="absolute top-4 left-4 bg-zinc-900 text-white text-xs px-3 py-1 font-semibold uppercase tracking-wider">Nuevo</span>}
               </div>
+              {images.length > 1 && (
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                  {images.map((img, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`shrink-0 w-24 h-24 object-cover border transition-all ${activeImageIndex === idx ? 'border-amber-500' : 'border-zinc-200 hover:border-zinc-300'}`}
+                    >
+                      <img src={img} alt={`Miniatura ${idx + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Info Producto */}
@@ -193,16 +195,17 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
               </div>
 
               <div className="prose prose-zinc prose-sm text-zinc-600 mb-8 max-w-none">
+                <h3 className="font-semibold text-zinc-900 mb-4 text-sm uppercase tracking-wider">Descripción del Producto</h3>
                 <p>{selectedProduct.description}</p>
               </div>
 
               {highlightsList.length > 0 && (
                 <div className="mb-8 border-t border-b border-zinc-100 py-6">
-                  <h3 className="font-semibold text-zinc-900 mb-4 text-sm uppercase tracking-wider">Puntos Destacados</h3>
+                  <h3 className="font-semibold text-zinc-900 mb-4 text-sm uppercase tracking-wider">Ficha Técnica & Detalles</h3>
                   <ul className="space-y-2">
                     {highlightsList.map((hl, i) => (
                       <li key={i} className="flex items-start text-sm text-zinc-600">
-                        <Star className="h-4 w-4 text-amber-500 mr-2 shrink-0 mt-0.5" />
+                        <Check className="h-4 w-4 text-amber-500 mr-3 shrink-0 mt-0.5" />
                         <span>{hl}</span>
                       </li>
                     ))}
@@ -258,8 +261,11 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
           {/* Relacionados */}
           {relatedProducts.length > 0 && (
-            <div className="border-t border-zinc-200 pt-16">
-              <h2 className="font-display text-2xl text-zinc-900 text-center mb-10">También te puede interesar</h2>
+            <div className="border-t border-zinc-100 pt-20 mt-12">
+              <div className="text-center mb-10">
+                <span className="text-[10px] tracking-[0.2em] text-zinc-400 font-semibold uppercase block mb-3">Combinaciones Perfectas</span>
+                <h2 className="font-display text-3xl text-zinc-900">También te puede interesar</h2>
+              </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {relatedProducts.map(p => (
                   <ProductCard key={p.id} product={p} onClick={() => { setSelectedProduct(p); window.scrollTo(0,0); setActiveImageIndex(0); setQuantity(1); }} categoryName={getCategoryName(p.category_id)} formatPrice={formatPrice} />
@@ -275,7 +281,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
   // Vista de Catálogo
   return (
-    <div className="min-h-screen bg-[#FAF9F6] pt-24 pb-16">
+    <div className="min-h-screen bg-white pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header Tienda */}

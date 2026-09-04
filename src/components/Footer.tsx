@@ -1,6 +1,6 @@
 import React from 'react';
 import { Screen } from '../types';
-import { Instagram, MapPin, Phone, Mail, Clock } from 'lucide-react';
+import { Instagram, MapPin, Phone, Mail, Clock, Truck, CreditCard, ShieldCheck, Shield } from 'lucide-react';
 
 interface FooterProps {
   onNavigate: (screen: Screen) => void;
@@ -8,8 +8,52 @@ interface FooterProps {
 
 export default function Footer({ onNavigate }: FooterProps) {
   return (
-    <footer className="bg-zinc-950 border-t border-zinc-900/50 pt-16 pb-8 text-zinc-400 font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <footer className="bg-[#111111] font-sans">
+      {/* Barra superior de confianza */}
+      <div className="border-b border-[#222] py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
+                <Truck className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Envíos a Todo el País</h4>
+                <p className="text-zinc-500 text-xs mt-1">Directo a tu domicilio</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
+                <CreditCard className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Medios de Pago</h4>
+                <p className="text-zinc-500 text-xs mt-1">Tarjetas y transferencias</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
+                <ShieldCheck className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Calidad Premium</h4>
+                <p className="text-zinc-500 text-xs mt-1">Productos de uso profesional</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
+                <Shield className="h-4 w-4 text-amber-500" />
+              </div>
+              <div>
+                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Compra Protegida</h4>
+                <p className="text-zinc-500 text-xs mt-1">Cuidamos todos tus datos</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8 text-zinc-400">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 mb-16">
           
           {/* Columna 1: Marca y presentación */}
