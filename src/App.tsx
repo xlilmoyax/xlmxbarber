@@ -16,7 +16,7 @@ import LimpiezaFacialView from './components/LimpiezaFacialView';
 import MembershipsView from './components/MembershipsView';
 import RegistroView from './components/RegistroView';
 import AdminLoginView from './components/AdminLoginView';
-import AdminDashboardView from './components/AdminDashboardView';
+import AdminDashboardView from './components/AdminDashboardProView';
 type AdminDashboardTypedProps = {
   users: RegisteredUser[];
   onLogout: () => void;
