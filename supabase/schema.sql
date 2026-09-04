@@ -137,6 +137,13 @@ as $$
   );
 $$;
 
+drop policy if exists "published testimonials are public" on public.testimonials;
+drop policy if exists "visitors can submit testimonials" on public.testimonials;
+drop policy if exists "admins manage testimonials" on public.testimonials;
+drop policy if exists "users can view own activity" on public.user_activity;
+drop policy if exists "admins manage pages and commerce" on public.site_pages;
+drop policy if exists "owner manages administrators" on public.admins;
+
 create policy "published testimonials are public" on public.testimonials
   for select using (published = true);
 create policy "visitors can submit testimonials" on public.testimonials
