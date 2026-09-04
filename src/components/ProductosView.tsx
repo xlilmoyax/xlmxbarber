@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Screen } from '../types';
 import { supabase } from '../lib/supabaseClient';
-import { Search, Filter, X, ChevronRight, ShoppingBag, MessageCircle, ArrowLeft, Star, Clock } from 'lucide-react';
+import { Search, Filter, X, ChevronRight, ChevronDown, ShoppingBag, MessageCircle, ArrowLeft, Star, Clock } from 'lucide-react';
 
 interface ProductosViewProps {
   onNavigate: (screen: Screen) => void;
@@ -52,6 +52,9 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
   // Detalle de producto
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [openAccordion, setOpenAccordion] = useState<string | null>('descripcion');
+
+  const toggleAccordion = (key: string) => setOpenAccordion(prev => prev === key ? null : key);
 
   useEffect(() => {
     fetchProducts();
@@ -194,24 +197,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                 )}
               </div>
 
-              <div className="prose prose-zinc prose-sm text-zinc-600 mb-8 max-w-none">
-                <h3 className="font-semibold text-zinc-900 mb-4 text-sm uppercase tracking-wider">Descripción del Producto</h3>
-                <p>{selectedProduct.description}</p>
-              </div>
 
-              {highlightsList.length > 0 && (
-                <div className="mb-8 border-t border-b border-zinc-100 py-6">
-                  <h3 className="font-semibold text-zinc-900 mb-4 text-sm uppercase tracking-wider">Ficha Técnica & Detalles</h3>
-                  <ul className="space-y-2">
-                    {highlightsList.map((hl, i) => (
-                      <li key={i} className="flex items-start text-sm text-zinc-600">
-                        <Check className="h-4 w-4 text-amber-500 mr-3 shrink-0 mt-0.5" />
-                        <span>{hl}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
               <div className="flex items-center gap-4 mb-8">
                 <div className="flex items-center border border-zinc-200">
@@ -257,6 +243,48 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Acordeones: Descripción y Ficha Técnica */}
+          <div className="border-t border-zinc-200 mb-4">
+
+            {/* Descripción */}
+            <div className="border-b border-zinc-200">
+              <button
+                onClick={() => toggleAccordion('descripcion')}
+                className="w-full flex items-center justify-between py-5 text-left"
+              >
+                <span className="font-bold text-zinc-900 text-base uppercase tracking-wider">Descripción</span>
+                <ChevronDown className={`h-5 w-5 text-zinc-500 transition-transform duration-300 ${openAccordion === 'descripcion' ? 'rotate-180' : ''}`} />
+              </button>
+              <div className={`overflow-hidden transition-all duration-300 ${openAccordion === 'descripcion' ? 'max-h-[600px] pb-6' : 'max-h-0'}`}>
+                <p className="text-sm text-zinc-600 leading-relaxed">{selectedProduct.description}</p>
+              </div>
+            </div>
+
+            {/* Ficha Técnica */}
+            {highlightsList.length > 0 && (
+              <div className="border-b border-zinc-200">
+                <button
+                  onClick={() => toggleAccordion('ficha')}
+                  className="w-full flex items-center justify-between py-5 text-left"
+                >
+                  <span className="font-bold text-zinc-900 text-base uppercase tracking-wider">Ficha Técnica & Detalles</span>
+                  <ChevronDown className={`h-5 w-5 text-zinc-500 transition-transform duration-300 ${openAccordion === 'ficha' ? 'rotate-180' : ''}`} />
+                </button>
+                <div className={`overflow-hidden transition-all duration-300 ${openAccordion === 'ficha' ? 'max-h-[600px] pb-6' : 'max-h-0'}`}>
+                  <ul className="space-y-2">
+                    {highlightsList.map((hl, i) => (
+                      <li key={i} className="flex items-start text-sm text-zinc-600">
+                        <Check className="h-4 w-4 text-amber-500 mr-3 shrink-0 mt-0.5" />
+                        <span>{hl}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Relacionados */}
