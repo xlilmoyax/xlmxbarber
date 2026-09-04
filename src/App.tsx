@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -31,6 +31,7 @@ const AdminDashboardTyped = AdminDashboardView as unknown as React.ComponentType
 import LegalView from './components/LegalView';
 import CursosView from './components/CursosView';
 import ProductosView from './components/ProductosView';
+import Footer from './components/Footer';
 import emailjs from '@emailjs/browser';
 import { isSupabaseConfigured, supabase, mapRowToUser } from './lib/supabaseClient';
 
@@ -678,6 +679,8 @@ const handleLogoutClient = () => {
         )}
 
       </main>
+
+      <Footer onNavigate={handleNavigate} />
 
     </div> 
   );
