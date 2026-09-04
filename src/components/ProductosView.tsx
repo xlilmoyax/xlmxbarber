@@ -109,7 +109,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
   const handleWhatsAppInquiry = (product: Product) => {
     const text = `Hola XLMX Barber, estoy interesado/a en adquirir el producto: *${product.name}* (${formatPrice(product.price)}). ¿Tienen disponibilidad?`;
-    window.open(`https://wa.me/5492645620967?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(`https://wa.me/5493516851403?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   // Render vacío si no hay productos en BD

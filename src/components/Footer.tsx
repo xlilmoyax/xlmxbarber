@@ -1,6 +1,6 @@
 import React from 'react';
 import { Screen } from '../types';
-import { Instagram, MapPin, Phone, Mail, Clock, Truck, CreditCard, ShieldCheck, Shield } from 'lucide-react';
+import { Award, Share2, Mail, MapPin, Clock } from 'lucide-react';
 
 interface FooterProps {
   onNavigate: (screen: Screen) => void;
@@ -8,127 +8,100 @@ interface FooterProps {
 
 export default function Footer({ onNavigate }: FooterProps) {
   return (
-    <footer className="bg-[#111111] font-sans">
-      {/* Barra superior de confianza */}
-      <div className="border-b border-[#222] py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
-                <Truck className="h-4 w-4 text-amber-500" />
-              </div>
-              <div>
-                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Envíos a Todo el País</h4>
-                <p className="text-zinc-500 text-xs mt-1">Directo a tu domicilio</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
-                <CreditCard className="h-4 w-4 text-amber-500" />
-              </div>
-              <div>
-                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Medios de Pago</h4>
-                <p className="text-zinc-500 text-xs mt-1">Tarjetas y transferencias</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
-                <ShieldCheck className="h-4 w-4 text-amber-500" />
-              </div>
-              <div>
-                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Calidad Premium</h4>
-                <p className="text-zinc-500 text-xs mt-1">Productos de uso profesional</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center shrink-0">
-                <Shield className="h-4 w-4 text-amber-500" />
-              </div>
-              <div>
-                <h4 className="text-zinc-200 text-sm font-semibold tracking-wide">Compra Protegida</h4>
-                <p className="text-zinc-500 text-xs mt-1">Cuidamos todos tus datos</p>
-              </div>
-            </div>
+    <footer className="bg-[#0c0f0f] w-full py-16 border-t border-[#4e4639]/30 text-sm font-sans">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-10 px-4 sm:px-6 lg:px-8 max-w-[1200px] mx-auto text-center md:text-left">
+        
+        <div className="space-y-4">
+          <div className="font-display text-lg sm:text-xl text-[#e9c176] uppercase tracking-widest font-semibold">
+            BARBERÍA XLMX
+          </div>
+          <p className="font-sans text-sm text-[#d1c5b4] leading-relaxed max-w-sm mx-auto md:mx-0">
+            Tu comunidad exclusiva para una experiencia premium en el cuidado de tu imagen personal.
+          </p>
+          <div className="flex justify-center md:justify-start space-x-4 pt-2">
+            <a href="#" className="text-[#d1c5b4] hover:text-[#e9c176] transition-colors">
+              <Award className="w-5 h-5" />
+            </a>
+            <a href="#" className="text-[#d1c5b4] hover:text-[#e9c176] transition-colors">
+              <Share2 className="w-5 h-5" />
+            </a>
+            <a href="#" className="text-[#d1c5b4] hover:text-[#e9c176] transition-colors">
+              <Mail className="w-5 h-5" />
+            </a>
           </div>
         </div>
+
+        <div className="space-y-4">
+          <h4 className="font-mono text-xs sm:text-sm text-[#e2e2e2] uppercase tracking-widest font-semibold">
+            Enlaces Rápidos
+          </h4>
+          <ul className="space-y-3 font-mono text-xs text-[#d1c5b4] uppercase">
+            <li>
+              <a 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); onNavigate('legal'); }}
+                className="hover:text-[#e9c176] transition-colors"
+              >
+                Política de Privacidad
+              </a>
+            </li>
+            <li>
+              <a 
+                href="#" 
+                onClick={(e) => { e.preventDefault(); onNavigate('legal'); }}
+                className="hover:text-[#e9c176] transition-colors"
+              >
+                Términos del Servicio
+              </a>
+            </li>
+            <li>
+              <button 
+                onClick={() => onNavigate('sobre-nosotros')}
+                className="hover:text-[#e9c176] transition-colors uppercase cursor-pointer"
+              >
+                Conocenos
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => onNavigate('registro')}
+                className="hover:text-[#e9c176] transition-colors uppercase cursor-pointer"
+              >
+                Afiliación
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div className="space-y-4">
+          <h4 className="font-mono text-xs sm:text-sm text-[#e2e2e2] uppercase tracking-widest font-semibold">
+            Ubicación Central
+          </h4>
+          <div className="font-sans text-sm text-[#d1c5b4] space-y-2 leading-relaxed">
+            <p className="flex items-start justify-center md:justify-start gap-2.5">
+              <MapPin className="w-4 h-4 text-[#e9c176] shrink-0 mt-0.5" />
+              <span>
+                Villa Allende Parque<br />
+                Sede Única XLMX, Ciudad de Córdoba
+              </span>
+            </p>
+            <p className="flex items-start justify-center md:justify-start gap-2.5 pt-2">
+              <Clock className="w-4 h-4 text-[#e9c176] shrink-0 mt-0.5" />
+              <span>
+                Lunes - Viernes: 07:00 - 16:00<br />
+                Sábados: 07:00 - 15:00<br />
+                <span className="text-[#e9c176] font-medium block mt-1">Trabajamos exclusivamente en la mañana.</span>
+              </span>
+            </p>
+          </div>
+        </div>
+
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8 text-zinc-400">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 mb-16">
-          
-          {/* Columna 1: Marca y presentación */}
-          <div className="space-y-6">
-            <h3 className="font-display text-2xl text-amber-400 tracking-wider">XLMX BARBER</h3>
-            <p className="text-sm leading-relaxed text-zinc-500">
-              Más que un corte de cabello, una experiencia de estilo, confort y exclusividad. 
-              Elevamos la barbería tradicional con técnicas modernas e instalaciones de primer nivel.
-            </p>
-            <div className="flex space-x-4">
-              <a href="https://instagram.com/xlmx.barber" target="_blank" rel="noopener noreferrer" className="h-10 w-10 rounded-full border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400 transition-colors">
-                <Instagram className="h-5 w-5" />
-              </a>
-              {/* Espacio para más redes si aplica */}
-            </div>
-          </div>
-
-          {/* Columna 2: Enlaces Rápidos */}
-          <div>
-            <h4 className="text-zinc-100 font-semibold tracking-widest text-sm uppercase mb-6">Explorar</h4>
-            <ul className="space-y-4 text-sm">
-              <li><button onClick={() => onNavigate('home')} className="hover:text-amber-400 transition-colors">Inicio</button></li>
-              <li><button onClick={() => onNavigate('sobre-nosotros')} className="hover:text-amber-400 transition-colors">Nuestra Historia</button></li>
-              <li><button onClick={() => onNavigate('productos')} className="hover:text-amber-400 transition-colors">Catálogo de Productos</button></li>
-              <li><button onClick={() => onNavigate('membresias')} className="hover:text-amber-400 transition-colors">Membresías</button></li>
-              <li><button onClick={() => onNavigate('cursos')} className="hover:text-amber-400 transition-colors">Cursos Profesionales</button></li>
-            </ul>
-          </div>
-
-          {/* Columna 3: Servicios */}
-          <div>
-            <h4 className="text-zinc-100 font-semibold tracking-widest text-sm uppercase mb-6">Servicios</h4>
-            <ul className="space-y-4 text-sm">
-              <li><button onClick={() => onNavigate('servicio-domicilio')} className="hover:text-amber-400 transition-colors">Atención a Domicilio</button></li>
-              <li><button onClick={() => onNavigate('experiencia-360')} className="hover:text-amber-400 transition-colors">Experiencia 360°</button></li>
-              <li><button onClick={() => onNavigate('spa-capilar')} className="hover:text-amber-400 transition-colors">Spa Capilar</button></li>
-              <li><button onClick={() => onNavigate('limpieza-facial')} className="hover:text-amber-400 transition-colors">Limpieza Facial</button></li>
-            </ul>
-          </div>
-
-          {/* Columna 4: Contacto */}
-          <div>
-            <h4 className="text-zinc-100 font-semibold tracking-widest text-sm uppercase mb-6">Contacto</h4>
-            <ul className="space-y-4 text-sm">
-              <li className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-amber-500 shrink-0" />
-                <span>San Juan, Argentina<br/>(Dirección exacta al reservar)</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone className="h-5 w-5 text-amber-500 shrink-0" />
-                <a href="https://wa.me/5492645620967" className="hover:text-amber-400 transition-colors">+54 9 264 562-0967</a>
-              </li>
-              <li className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-amber-500 shrink-0" />
-                <a href="mailto:info@xlmxbarber.com" className="hover:text-amber-400 transition-colors">info@xlmxbarber.com</a>
-              </li>
-              <li className="flex items-start gap-3">
-                <Clock className="h-5 w-5 text-amber-500 shrink-0" />
-                <span>Mar a Sáb: 10:00 - 20:00<br/>Dom y Lun: Cerrado</span>
-              </li>
-            </ul>
-          </div>
-
-        </div>
-
-        {/* Separador inferior */}
-        <div className="pt-8 border-t border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-          <p className="text-zinc-600">
-            &copy; {new Date().getFullYear()} XLMX Barber. Todos los derechos reservados.
-          </p>
-          <div className="flex gap-4">
-            <button onClick={() => onNavigate('legal')} className="text-zinc-600 hover:text-zinc-400 transition-colors">Términos y Condiciones</button>
-            <button onClick={() => onNavigate('legal')} className="text-zinc-600 hover:text-zinc-400 transition-colors">Política de Privacidad</button>
-          </div>
-        </div>
+      <div className="mt-16 pt-8 border-t border-[#4e4639]/10 text-center px-4">
+        <p className="font-mono text-xs text-[#d1c5b4] uppercase tracking-widest leading-relaxed">
+          © {new Date().getFullYear()} BARBERÍA XLMX. EXCLUSIVIDAD Y ESTILO EN CADA DETALLE. SEDE CÓRDOBA.
+        </p>
       </div>
     </footer>
   );
