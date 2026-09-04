@@ -7,6 +7,7 @@ import React, { useEffect } from 'react';
 import { Screen } from '../types';
 import { Crown, Sparkles, Gamepad2, ArrowRight, Award, Share2, Mail, MapPin, Clock, Phone, Instagram } from 'lucide-react';
 import { IMAGES } from '../data';
+import TestimonialsSection from './TestimonialsSection';
 
 interface HomeViewProps {
   onNavigate: (screen: Screen) => void;
@@ -373,6 +374,8 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           </article>
         </div>
       </section>
+
+      <TestimonialsSection />
 
       {/* Floating Reservation Widget (Desktop-Only Bottom Right) */}
       <div className="fixed bottom-8 right-8 z-40 hidden lg:block">

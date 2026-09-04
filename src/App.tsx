@@ -142,6 +142,17 @@ useEffect(() => {
     verifyCurrentUser();
   }, [loggedInClient]);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured || !loggedInClient) return;
+    supabase.from('user_activity').insert({
+      user_id: loggedInClient.id,
+      event_type: 'page_view',
+      page_slug: currentScreen,
+    }).then(({ error }) => {
+      if (error) console.warn('No se pudo registrar la actividad del usuario:', error.message);
+    });
+  }, [currentScreen, loggedInClient]);
+
   // Realtime sync with Supabase users table.
   useEffect(() => {
     if (!isSupabaseConfigured) return;

@@ -51,6 +51,22 @@ create table if not exists public.testimonials (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.user_activity (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references public.users(id) on delete cascade,
+  event_type text not null,
+  page_slug text not null default '',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.admins (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null unique,
+  role text not null default 'editor' check (role in ('owner', 'editor')),
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.courses (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -92,6 +108,7 @@ create index if not exists products_category_idx on public.products(category_id)
 create index if not exists course_sections_course_idx on public.course_sections(course_id, position);
 create index if not exists course_lessons_section_idx on public.course_lessons(section_id, position);
 create index if not exists course_access_user_idx on public.course_access(user_id);
+create index if not exists user_activity_user_idx on public.user_activity(user_id, created_at desc);
 
 alter table public.categories enable row level security;
 alter table public.products enable row level security;
@@ -103,5 +120,34 @@ alter table public.course_access enable row level security;
 alter table public.site_pages enable row level security;
 alter table public.site_settings enable row level security;
 alter table public.testimonials enable row level security;
+alter table public.user_activity enable row level security;
+alter table public.admins enable row level security;
+
+create or replace function public.is_admin(required_role text default 'editor')
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.admins
+    where id = auth.uid()
+      and (required_role = 'editor' or role = 'owner')
+      and (required_role = 'editor' or role = required_role)
+  );
+$$;
+
+create policy "published testimonials are public" on public.testimonials
+  for select using (published = true);
+create policy "visitors can submit testimonials" on public.testimonials
+  for insert with check (published = false);
+create policy "admins manage testimonials" on public.testimonials
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "users can view own activity" on public.user_activity
+  for select using (user_id = auth.uid()::text or public.is_admin('owner'));
+create policy "admins manage pages and commerce" on public.site_pages
+  for all using (public.is_admin('editor')) with check (public.is_admin('editor'));
+create policy "owner manages administrators" on public.admins
+  for all using (public.is_admin('owner')) with check (public.is_admin('owner'));
 
 -- Aplicar políticas según el método de autenticación administrativa antes de producción.
