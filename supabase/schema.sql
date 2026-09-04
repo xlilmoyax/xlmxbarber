@@ -4,6 +4,16 @@ create table if not exists public.categories (
   created_at timestamptz not null default now()
 );
 
+insert into public.categories (id, name)
+select category.id, category.name
+from (values
+  ('00000000-0000-0000-0000-000000000001'::uuid, 'Barbería'),
+  ('00000000-0000-0000-0000-000000000002'::uuid, 'Capilar'),
+  ('00000000-0000-0000-0000-000000000003'::uuid, 'Dermacosmética')
+) as category(id, name)
+where not exists (select 1 from public.categories existing where lower(existing.name) = lower(category.name))
+on conflict (id) do nothing;
+
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   name text not null,

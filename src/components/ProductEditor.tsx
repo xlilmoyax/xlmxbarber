@@ -24,6 +24,12 @@ type Product = {
 type Category = { id: string; name: string };
 type ProductImage = { id: string; preview: string; url?: string; file?: File; isPrimary: boolean };
 
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: '00000000-0000-0000-0000-000000000001', name: 'Barbería' },
+  { id: '00000000-0000-0000-0000-000000000002', name: 'Capilar' },
+  { id: '00000000-0000-0000-0000-000000000003', name: 'Dermacosmética' },
+];
+
 type Props = {
   product?: Product | null;
   categories: Category[];
@@ -36,6 +42,7 @@ const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 const statusLabels = { draft: 'Borrador', published: 'Publicado', sold_out: 'Agotado', archived: 'Archivado' } as const;
 
 export default function ProductEditor({ product, categories, onClose, onSaved }: Props) {
+  const availableCategories = DEFAULT_CATEGORIES.map((defaultCategory) => categories.find((category) => category.name.toLowerCase() === defaultCategory.name.toLowerCase()) || defaultCategory);
   const [form, setForm] = useState<Product>({ name: '', category_id: '', price: '', original_price: '', materials: '', stock: '', description: '', highlights: '', status: 'draft', featured: false, is_new: false, free_shipping: false, customizable: false });
   const [images, setImages] = useState<ProductImage[]>([]);
   const [imageUrl, setImageUrl] = useState('');
@@ -124,7 +131,7 @@ export default function ProductEditor({ product, categories, onClose, onSaved }:
       <form onSubmit={save} className="grid gap-6 p-5 sm:p-8 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
           <label className="block text-sm font-medium">Nombre de la pieza *<input value={form.name} onChange={(e) => update('name', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.name && <small className="text-[#F50078]">{errors.name}</small>}</label>
-          <label className="block text-sm font-medium">Categoría *<select value={form.category_id || ''} onChange={(e) => update('category_id', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5"><option value="">Selecciona una categoría</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>{errors.category_id && <small className="text-[#F50078]">{errors.category_id}</small>}</label>
+          <label className="block text-sm font-medium">Categoría *<select value={form.category_id || ''} onChange={(e) => update('category_id', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5"><option value="">Selecciona una categoría</option>{availableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>{errors.category_id && <small className="text-[#F50078]">{errors.category_id}</small>}</label>
           <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Precio actual (ARS) *<input type="number" min="0" step=".01" value={form.price} onChange={(e) => update('price', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.price && <small className="text-[#F50078]">{errors.price}</small>}</label><label className="block text-sm font-medium">Precio original (ARS)<input type="number" min="0" step=".01" value={form.original_price ?? ''} onChange={(e) => update('original_price', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label></div>
           <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Material<input value={form.materials || ''} onChange={(e) => update('materials', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label><label className="block text-sm font-medium">Stock disponible<input type="number" min="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.stock && <small className="text-[#F50078]">{errors.stock}</small>}</label></div>
           <label className="block text-sm font-medium">Estado<select value={form.status || 'draft'} onChange={(e) => update('status', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
