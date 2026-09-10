@@ -8,6 +8,14 @@ import { Screen } from '../types';
 import { Crown, Sparkles, Gamepad2, ArrowRight } from 'lucide-react';
 import { IMAGES } from '../data';
 import TestimonialsSection from './TestimonialsSection';
+import { renderBlocks } from '../lib/pageBlocks';
+import { usePageBlocks } from '../lib/usePageBlocks';
+import { SitePage } from '../lib/pageStore';
+
+function PageSection({ page, children }: { page: { loading: boolean; page: SitePage | null }; children: React.ReactNode }) {
+  if (!page || !page.page) return <>{children}</>;
+  return <div className="bg-[#FAF9F6]">{renderBlocks(page.page.blocks)}</div>;
+}
 
 interface HomeViewProps {
   onNavigate: (screen: Screen) => void;
@@ -41,9 +49,16 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
     }
   };
 
+  const inicio = usePageBlocks('inicio');
+  const servicios = usePageBlocks('servicios');
+  const aliados = usePageBlocks('aliados');
+  const afiliados = usePageBlocks('afiliados');
+  const novedades = usePageBlocks('novedades');
+
   return (
     <div id="home-view" className="relative text-[#e2e2e2] bg-[#121414] overflow-x-hidden font-sans">
-      
+
+      <PageSection page={inicio}>
       {/* 1. Hero Section */}
       <section 
         id="home" 
@@ -86,8 +101,10 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           </div>
         </div>
       </section>
+      </PageSection>
 
       {/* 2. Afiliación Exclusiva Section */}
+      <PageSection page={afiliados}>
       <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-[1200px] mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
           <div>
@@ -151,9 +168,11 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
             />
           </div>
         </div>
-      </section>
+        </section>
+      </PageSection>
 
       {/* 3. Servicios Especializados Section */}
+      <PageSection page={servicios}>
       <section id="servicios-especializados" className="py-24 bg-[#1a1c1c]">
         <div className="px-4 sm:px-6 lg:px-8 max-w-[1200px] mx-auto">
           <div className="text-center mb-16">
@@ -275,9 +294,11 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
 
           </div>
         </div>
-      </section>
+        </section>
+      </PageSection>
 
       {/* 4. Partners / Aliados Section */}
+      <PageSection page={aliados}>
       <section id="aliados" className="py-24 bg-[#333535]">
         <div className="px-4 sm:px-6 lg:px-8 max-w-[1200px] mx-auto">
           <div className="text-center mb-16">
@@ -326,9 +347,11 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
 
           </div>
         </div>
-      </section>
+        </section>
+      </PageSection>
 
       {/* 5. News / Novedades Section */}
+      <PageSection page={novedades}>
       <section id="news" className="py-24 px-4 sm:px-6 lg:px-8 max-w-[1200px] mx-auto">
         <div className="text-center mb-16">
           <span className="text-[#e9c176] font-mono text-xs sm:text-sm tracking-[0.2em] uppercase block mb-2">
@@ -373,7 +396,8 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
             </div>
           </article>
         </div>
-      </section>
+        </section>
+      </PageSection>
 
       <TestimonialsSection />
 

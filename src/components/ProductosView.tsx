@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Screen, RegisteredUser, Category, HeroConfig } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { getDiscountInfo } from '../lib/productHelpers';
+import { renderBlocks } from '../lib/pageBlocks';
+import { usePageBlocks } from '../lib/usePageBlocks';
 import { Search, Filter, X, ChevronRight, ChevronDown, ShoppingBag, MessageCircle, ArrowLeft, Star, Lock, LogIn } from 'lucide-react';
 
 interface ProductosViewProps {
@@ -14,6 +17,11 @@ type Product = {
   category_id: string;
   price: number;
   original_price: number | null;
+  materials?: string;
+  brand?: string;
+  discount_enabled?: boolean;
+  discount_type?: 'percentage' | 'fixed';
+  discount_value?: number;
   stock: number;
   description: string;
   highlights: string;
@@ -44,10 +52,12 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [sortBy, setSortBy] = useState('newest');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authProduct, setAuthProduct] = useState<Product | null>(null);
+  const productosPage = usePageBlocks('productos');
 
   // Detalle de producto
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -143,12 +153,15 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
 
   const filteredProducts = products
     .filter(p => selectedCategory === 'all' || p.category_id === selectedCategory)
+    .filter(p => selectedBrand === 'all' || (p.brand || '').trim().toLowerCase() === selectedBrand.toLowerCase())
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'price_asc') return a.price - b.price;
       if (sortBy === 'price_desc') return b.price - a.price;
       return 0;
     });
+
+  const brands = Array.from(new Set(products.map(p => (p.brand || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'));
 
   const featuredProducts = heroConfig?.featured_product_ids?.length
     ? products.filter(p => heroConfig.featured_product_ids!.includes(p.id)).slice(0, 4)
@@ -223,6 +236,7 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
       : (selectedProduct.image_url ? [selectedProduct.image_url] : ['https://via.placeholder.com/600x600?text=XLMX+BARBER']);
 
     const highlightsList = selectedProduct.highlights ? selectedProduct.highlights.split('\n').filter(Boolean) : [];
+    const discount = getDiscountInfo(selectedProduct);
 
     const relatedProducts = products
       .filter(p => p.category_id === selectedProduct.category_id && p.id !== selectedProduct.id)
@@ -250,7 +264,11 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
             <div className="flex flex-col gap-4">
               <div className="w-full bg-[#FAF9F6] aspect-[4/3] sm:aspect-square lg:aspect-auto lg:h-[500px] border border-zinc-100 flex items-center justify-center relative overflow-hidden group">
                 <img src={images[activeImageIndex]} alt={selectedProduct.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                {selectedProduct.is_new && <span className="absolute top-4 left-4 bg-zinc-900 text-white text-xs px-3 py-1 font-semibold uppercase tracking-wider">Nuevo</span>}
+                <div className="absolute top-4 left-4 flex flex-col gap-2">
+                  {selectedProduct.is_new && <span className="bg-zinc-900 text-white text-xs px-3 py-1 font-semibold uppercase tracking-wider">Nuevo</span>}
+                  {discount.active && <span className="bg-amber-500 text-white text-xs px-3 py-1 font-semibold uppercase tracking-wider">{discount.label}</span>}
+                </div>
+                {selectedProduct.free_shipping && <span className="absolute top-4 right-4 bg-emerald-600 text-white text-xs px-3 py-1 font-semibold uppercase tracking-wider">Envío gratis</span>}
               </div>
               {images.length > 1 && (
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
@@ -270,13 +288,16 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
             {/* Info Producto */}
             <div className="flex flex-col">
               <span className="text-sm tracking-widest text-amber-600 font-semibold uppercase mb-2">{getCategoryName(selectedProduct.category_id)}</span>
+              {selectedProduct.brand && <span className="text-lg font-bold uppercase tracking-widest text-zinc-900 mb-1">{selectedProduct.brand}</span>}
+              {selectedProduct.materials && <span className="text-xs font-mono text-zinc-400 uppercase tracking-wider mb-3">Referencia: {selectedProduct.materials}</span>}
               <h1 className="font-display text-3xl sm:text-4xl text-zinc-900 mb-4 leading-tight">{selectedProduct.name}</h1>
 
               <div className="flex items-end gap-3 mb-6">
-                <span className="text-2xl font-semibold text-zinc-900">{formatPrice(selectedProduct.price)}</span>
-                {selectedProduct.original_price && selectedProduct.original_price > selectedProduct.price && (
-                  <span className="text-lg text-zinc-400 line-through mb-0.5">{formatPrice(selectedProduct.original_price)}</span>
+                <span className={`text-3xl font-bold ${discount.active ? 'text-amber-700' : 'text-zinc-900'}`}>{formatPrice(selectedProduct.price)}</span>
+                {discount.active && discount.original !== null && (
+                  <span className="text-lg text-zinc-400 line-through mb-0.5">{formatPrice(discount.original)}</span>
                 )}
+                {discount.active && <span className="bg-amber-500 text-white text-xs px-2 py-1 font-semibold uppercase tracking-wider mb-1">{discount.label}</span>}
               </div>
 
               <div className="flex items-center gap-4 mb-8">
@@ -387,6 +408,12 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
     <div className="min-h-screen bg-white pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
+        {productosPage.page && (
+          <div className="mb-10">
+            {renderBlocks(productosPage.page.blocks, { products: products.map(p => ({ id: p.id, name: p.name, price: p.price, image_url: p.image_url, image_urls: p.image_urls })) })}
+          </div>
+        )}
+
         {/* Header Tienda - Hero dinámico o estático */}
         {heroConfig ? (
           <div className="relative mb-12 overflow-hidden">
@@ -486,6 +513,31 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
                   </li>
                 ))}
               </ul>
+              <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-4 mt-8">Marcas</h3>
+              {brands.length === 0 ? (
+                <p className="text-sm text-zinc-400">Sin marcas cargadas.</p>
+              ) : (
+                <ul className="space-y-3">
+                  <li>
+                    <button
+                      onClick={() => setSelectedBrand('all')}
+                      className={`text-sm hover:text-amber-600 transition-colors ${selectedBrand === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
+                    >
+                      Todas
+                    </button>
+                  </li>
+                  {brands.map(brand => (
+                    <li key={brand}>
+                      <button
+                        onClick={() => setSelectedBrand(brand)}
+                        className={`text-sm hover:text-amber-600 transition-colors text-left ${selectedBrand === brand ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
+                      >
+                        {brand}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {!loggedInClient && (
                 <div className="mt-8 border border-zinc-200 p-4">
                   <p className="text-sm font-semibold text-zinc-900 flex items-center gap-2 mb-2"><Lock className="h-4 w-4 text-amber-500" /> Inicia sesión para comprar</p>
@@ -519,7 +571,7 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
                 <Search className="h-10 w-10 text-zinc-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-zinc-900 mb-2">No se encontraron productos</h3>
                 <p className="text-zinc-500">Prueba con otra búsqueda o cambia los filtros.</p>
-                <button onClick={() => {setSearchQuery(''); setSelectedCategory('all');}} className="mt-4 text-sm font-semibold text-amber-600 hover:text-amber-700">Limpiar filtros</button>
+                <button onClick={() => {setSearchQuery(''); setSelectedCategory('all'); setSelectedBrand('all');}} className="mt-4 text-sm font-semibold text-amber-600 hover:text-amber-700">Limpiar filtros</button>
               </div>
             )}
           </div>
@@ -556,6 +608,27 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
                       className={`block w-full text-left text-sm ${selectedCategory === c.id ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
                     >
                       {c.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-4 mt-6">Marcas</h3>
+              <ul className="space-y-4">
+                <li>
+                  <button
+                    onClick={() => { setSelectedBrand('all'); setShowFiltersMobile(false); }}
+                    className={`block w-full text-left text-sm ${selectedBrand === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
+                  >
+                    Todas
+                  </button>
+                </li>
+                {brands.map(brand => (
+                  <li key={brand}>
+                    <button
+                      onClick={() => { setSelectedBrand(brand); setShowFiltersMobile(false); }}
+                      className={`block w-full text-left text-sm ${selectedBrand === brand ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
+                    >
+                      {brand}
                     </button>
                   </li>
                 ))}
@@ -629,6 +702,7 @@ function Check(props: any) {
 // Componente Tarjeta
 function ProductCard({ product, onClick, categoryName, formatPrice }: { product: Product, onClick: () => void, categoryName: string, formatPrice: (price: number) => string }) {
   const imageUrl = product.image_url || (product.image_urls && product.image_urls[0]) || 'https://via.placeholder.com/400x500?text=XLMX';
+  const discount = getDiscountInfo(product);
 
   return (
     <div className="group cursor-pointer flex flex-col" onClick={onClick}>
@@ -641,8 +715,13 @@ function ProductCard({ product, onClick, categoryName, formatPrice }: { product:
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           {product.is_new && <span className="bg-zinc-900 text-white text-[10px] px-2 py-1 font-semibold uppercase tracking-widest">Nuevo</span>}
-          {product.original_price && product.original_price > product.price && <span className="bg-amber-500 text-white text-[10px] px-2 py-1 font-semibold uppercase tracking-widest">Oferta</span>}
+          {discount.active && <span className="bg-amber-500 text-white text-[10px] px-2 py-1 font-semibold uppercase tracking-widest">{discount.label}</span>}
         </div>
+        {product.free_shipping && (
+          <div className="absolute top-3 right-3">
+            <span className="bg-emerald-600 text-white text-[10px] px-2 py-1 font-semibold uppercase tracking-widest">Envío gratis</span>
+          </div>
+        )}
 
         {/* Overlay Hover Action */}
         <div className="absolute inset-x-0 bottom-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-4 group-hover:translate-y-0">
@@ -651,13 +730,18 @@ function ProductCard({ product, onClick, categoryName, formatPrice }: { product:
       </div>
 
       <div className="flex flex-col flex-1 px-1">
-        <span className="text-xs tracking-widest text-zinc-400 uppercase mb-1">{categoryName}</span>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-xs tracking-widest text-zinc-400 uppercase">{categoryName}</span>
+          {product.materials && <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">{product.materials}</span>}
+        </div>
+        {product.brand && <span className="text-[11px] font-semibold uppercase tracking-widest text-amber-700 mb-1">{product.brand}</span>}
         <h3 className="text-sm font-medium text-zinc-900 mb-2 leading-tight">{product.name}</h3>
         <div className="mt-auto flex items-center gap-2">
-          <span className="text-sm font-semibold text-zinc-900">{formatPrice(product.price)}</span>
-          {product.original_price && product.original_price > product.price && (
-            <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price)}</span>
+          <span className={`text-sm font-semibold ${discount.active ? 'text-amber-700' : 'text-zinc-900'}`}>{formatPrice(product.price)}</span>
+          {discount.active && discount.original !== null && (
+            <span className="text-xs text-zinc-400 line-through">{formatPrice(discount.original)}</span>
           )}
+          {product.free_shipping && <span className="ml-auto text-[10px] font-semibold uppercase tracking-widest text-emerald-700">Envío gratis</span>}
         </div>
       </div>
     </div>

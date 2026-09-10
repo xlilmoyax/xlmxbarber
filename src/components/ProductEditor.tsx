@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Check, GripVertical, ImagePlus, Save, Star, Trash2, X } from 'lucide-react';
+import { Check, GripVertical, ImagePlus, Save, Star, Trash2, X, Barcode, Tag } from 'lucide-react';
+import { computeFinalPrice, generateProductCode, randomCodeDigits } from '../lib/productHelpers';
 
 type Product = {
   id?: string;
@@ -9,6 +10,10 @@ type Product = {
   price: number | string;
   original_price?: number | string | null;
   materials?: string;
+  brand?: string;
+  discount_enabled?: boolean;
+  discount_type?: 'percentage' | 'fixed';
+  discount_value?: number | string;
   stock: number | string;
   description: string;
   highlights?: string;
@@ -43,7 +48,9 @@ const statusLabels = { draft: 'Borrador', published: 'Publicado', sold_out: 'Ago
 
 export default function ProductEditor({ product, categories, onClose, onSaved }: Props) {
   const availableCategories = DEFAULT_CATEGORIES.map((defaultCategory) => categories.find((category) => category.name.toLowerCase() === defaultCategory.name.toLowerCase()) || defaultCategory);
-  const [form, setForm] = useState<Product>({ name: '', category_id: '', price: '', original_price: '', materials: '', stock: '', description: '', highlights: '', status: 'draft', featured: false, is_new: false, free_shipping: false, customizable: false });
+  const [form, setForm] = useState<Product>({ name: '', category_id: '', price: '', original_price: '', materials: '', brand: '', discount_enabled: false, discount_type: 'percentage', discount_value: '', stock: '', description: '', highlights: '', status: 'draft', featured: false, is_new: false, free_shipping: false, customizable: false });
+  const [productType, setProductType] = useState<'A' | 'B'>('A');
+  const [skuDigits, setSkuDigits] = useState(randomCodeDigits);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [imageUrl, setImageUrl] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -52,7 +59,11 @@ export default function ProductEditor({ product, categories, onClose, onSaved }:
 
   useEffect(() => {
     if (!product) return;
-    setForm({ ...product, category_id: product.category_id || '', highlights: product.highlights || '', original_price: product.original_price ?? '' });
+    const code = product.materials?.trim() || '';
+    const prefix = /^B-/.test(code) ? 'B' : 'A';
+    setProductType(prefix as 'A' | 'B');
+    const basePrice = product.discount_enabled && Number(product.original_price) > 0 ? Number(product.original_price) : product.price;
+    setForm({ ...product, category_id: product.category_id || '', highlights: product.highlights || '', brand: product.brand || '', discount_enabled: product.discount_enabled ?? false, discount_type: product.discount_type || 'percentage', discount_value: product.discount_value ?? '', price: basePrice, original_price: product.original_price ?? '' });
     const urls = product.image_urls?.length ? product.image_urls : product.image_url ? [product.image_url] : [];
     setImages(urls.map((url, index) => ({ id: `existing-${index}`, preview: url, url, isPrimary: index === 0 })));
   }, [product]);
@@ -87,11 +98,20 @@ export default function ProductEditor({ product, categories, onClose, onSaved }:
   const setPrimary = (id: string) => setImages((current) => current.map((image) => ({ ...image, isPrimary: image.id === id })));
   const moveImage = (index: number, direction: -1 | 1) => setImages((current) => { const target = index + direction; if (target < 0 || target >= current.length) return current; const next = [...current]; [next[index], next[target]] = [next[target], next[index]]; return next; });
 
+  const computeFinal = () => computeFinalPrice(form.price, Boolean(form.discount_enabled), form.discount_type, form.discount_value);
+
   const validate = () => {
     const next: Record<string, string> = {};
+    const base = Number(form.price) || 0;
+    const final = computeFinal();
+    const discountValue = Number(form.discount_value) || 0;
     if (!form.name?.trim()) next.name = 'El nombre es obligatorio.';
     if (!form.category_id) next.category_id = 'Selecciona una categoría.';
-    if (form.price === '' || Number(form.price) < 0) next.price = 'Indica un precio válido.';
+    if (form.price === '' || base <= 0) next.price = 'Indica un precio válido.';
+    if (form.discount_enabled) {
+      if (discountValue <= 0) next.discount = 'Ingresa un valor de descuento mayor a 0.';
+      else if (final <= 0) next.discount = 'El precio final no puede quedar en cero o negativo.';
+    }
     if (form.stock === '' || Number(form.stock) < 0) next.stock = 'Indica un stock válido.';
     if (!form.description?.trim()) next.description = 'La descripción es obligatoria.';
     setErrors(next);
@@ -104,6 +124,17 @@ export default function ProductEditor({ product, categories, onClose, onSaved }:
     setSaving(true); setMessage('');
     try {
       const productId = product?.id || crypto.randomUUID();
+      const finalPrice = computeFinal();
+      const basePrice = Number(form.price) || 0;
+      const hasDiscount = Boolean(form.discount_enabled) && Number(form.discount_value) > 0 && finalPrice > 0 && finalPrice < basePrice;
+
+      let sku = product?.materials?.trim() || '';
+      if (!sku) {
+        const { data: existing } = await supabase.from('products').select('materials');
+        const codes = (existing || []).map((row: any) => row.materials || '');
+        sku = generateProductCode(productType, codes);
+      }
+
       const uploadedUrls = new Map<string, string>();
       for (const image of images) {
         if (!image.file) continue;
@@ -115,7 +146,7 @@ export default function ProductEditor({ product, categories, onClose, onSaved }:
       }
       const orderedUrls = images.map((image) => image.url || uploadedUrls.get(image.id)).filter(Boolean) as string[];
       const primaryIndex = images.findIndex((image) => image.isPrimary);
-      const result = await supabase.from('products').upsert({ id: productId, name: form.name.trim(), category_id: form.category_id, price: Number(form.price), original_price: form.original_price === '' ? null : Number(form.original_price), materials: form.materials?.trim() || '', stock: Number(form.stock), description: form.description.trim(), highlights: form.highlights?.trim() || '', status: form.status || 'draft', featured: Boolean(form.featured), is_new: Boolean(form.is_new), free_shipping: Boolean(form.free_shipping), customizable: Boolean(form.customizable), image_urls: orderedUrls, image_url: orderedUrls[primaryIndex >= 0 ? primaryIndex : 0] || '' });
+      const result = await supabase.from('products').upsert({ id: productId, name: form.name.trim(), category_id: form.category_id, price: finalPrice, original_price: hasDiscount ? basePrice : null, materials: sku, brand: form.brand?.trim() || '', discount_enabled: hasDiscount, discount_type: form.discount_type || 'percentage', discount_value: hasDiscount ? Number(form.discount_value) : 0, stock: Number(form.stock), description: form.description.trim(), highlights: form.highlights?.trim() || '', status: form.status || 'draft', featured: Boolean(form.featured), is_new: Boolean(form.is_new), free_shipping: Boolean(form.free_shipping), customizable: Boolean(form.customizable), image_urls: orderedUrls, image_url: orderedUrls[primaryIndex >= 0 ? primaryIndex : 0] || '' });
       if (result.error) throw new Error(result.error.message);
       setMessage('Producto guardado correctamente.');
       await onSaved();
@@ -131,9 +162,10 @@ export default function ProductEditor({ product, categories, onClose, onSaved }:
       <form onSubmit={save} className="grid gap-6 p-5 sm:p-8 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
           <label className="block text-sm font-medium">Nombre de la pieza *<input value={form.name} onChange={(e) => update('name', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.name && <small className="text-[#F50078]">{errors.name}</small>}</label>
-          <label className="block text-sm font-medium">Categoría *<select value={form.category_id || ''} onChange={(e) => update('category_id', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5"><option value="">Selecciona una categoría</option>{availableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>{errors.category_id && <small className="text-[#F50078]">{errors.category_id}</small>}</label>
-          <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Precio actual (ARS) *<input type="number" min="0" step=".01" value={form.price} onChange={(e) => update('price', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.price && <small className="text-[#F50078]">{errors.price}</small>}</label><label className="block text-sm font-medium">Precio original (ARS)<input type="number" min="0" step=".01" value={form.original_price ?? ''} onChange={(e) => update('original_price', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label></div>
-          <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Material<input value={form.materials || ''} onChange={(e) => update('materials', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label><label className="block text-sm font-medium">Stock disponible<input type="number" min="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.stock && <small className="text-[#F50078]">{errors.stock}</small>}</label></div>
+          <label className="block text-sm font-medium">Categoría *<select value={form.category_id || ''} onChange={(e) => update('category_id', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5"><option value="">Selecciona una categoría</option>{availableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>{errors.category_id && <small className="text-[#F50078]">{errors.category_id}</small>}</label><label className="mt-4 block text-sm font-medium">Marca<input value={form.brand || ''} onChange={(e) => update('brand', e.target.value)} placeholder="Ej: Sir Fausto, Idraet, Filler, L3VEL3..." className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label>
+          <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Precio base (ARS) *<input type="number" min="0" step=".01" value={form.price} onChange={(e) => update('price', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.price && <small className="text-[#F50078]">{errors.price}</small>}</label><div className="flex items-end justify-between rounded bg-[#F6F4EF] px-3 py-2.5"><span className="text-sm text-[#667085]">Precio final</span><span className="text-lg font-bold text-[#151515]">$ {computeFinal().toLocaleString('es-AR')}</span></div></div>
+          <div className="rounded border border-[#E8E3DA] bg-white p-4"><div className="flex items-center justify-between"><p className="flex items-center gap-2 text-sm font-semibold"><Tag className="h-4 w-4 text-[#C9A24D]" />Descuento</p><label className="flex items-center gap-2 text-sm text-[#151515]"><input type="checkbox" checked={Boolean(form.discount_enabled)} onChange={(e) => update('discount_enabled', e.target.checked)} />Activo</label></div>{Boolean(form.discount_enabled) && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium">Tipo<select value={form.discount_type || 'percentage'} onChange={(e) => update('discount_type', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5"><option value="percentage">Porcentaje (%)</option><option value="fixed">Monto fijo (ARS)</option></select></label><label className="block text-sm font-medium">{form.discount_type === 'fixed' ? 'Valor (ARS)' : 'Porcentaje (%)'} *<input type="number" min="0" step={form.discount_type === 'fixed' ? '.01' : '1'} value={form.discount_value ?? ''} onChange={(e) => update('discount_value', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label>{errors.discount && <small className="text-[#F50078] sm:col-span-2">{errors.discount}</small>}<p className="text-xs text-[#667085] sm:col-span-2">En la tienda se mostrará el precio base tachado y el final en color. Cuando el descuento está inactivo o deja de ser real, no se muestran etiquetas.</p></div>}</div>
+          <div className="rounded border border-[#E8E3DA] bg-white p-4"><div className="flex items-center justify-between"><label className="block text-sm font-medium">ID de producto *</label>{(product?.materials || '').trim() ? <span className="rounded bg-[#F6F4EF] px-2 py-0.5 font-mono text-xs font-semibold text-[#151515]">{product.materials}</span> : null}</div>{!product?.materials ? <><div className="mt-3 grid gap-3 sm:grid-cols-2"><div><p className="text-sm text-[#667085]">Tipo de pieza</p><div className="mt-1 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setProductType('A'); setSkuDigits(randomCodeDigits()); }} className={`border px-3 py-2 text-left text-xs ${productType === 'A' ? 'border-[#C9A24D] bg-[#FFF9E9] text-[#8A6514]' : 'border-[#E8E3DA] text-[#667085]'}`}><span className="block font-mono text-sm font-semibold">A-68420</span>Consumible (capilar, barba, cuidado)</button><button type="button" onClick={() => { setProductType('B'); setSkuDigits(randomCodeDigits()); }} className={`border px-3 py-2 text-left text-xs ${productType === 'B' ? 'border-[#C9A24D] bg-[#FFF9E9] text-[#8A6514]' : 'border-[#E8E3DA] text-[#667085]'}`}><span className="block font-mono text-sm font-semibold">B-42103</span>Herramienta (máquinas, accesorios)</button></div></div><div><p className="text-sm text-[#667085]">Vista previa del ID</p><p className="mt-1 border border-dashed border-[#C9A24D] bg-[#FFF9E9] px-3 py-2.5 font-mono text-sm font-semibold text-[#8A6514]">{productType}-{skuDigits}</p></div></div><p className="mt-2 flex items-center gap-1.5 text-xs text-[#667085]"><Barcode className="h-3.5 w-3.5" />El ID se genera automáticamente al guardar y no se repite. Prefijo A para consumibles, B para herramientas.</p></> : null}</div><label className="block text-sm font-medium">Stock disponible<input type="number" min="0" value={form.stock} onChange={(e) => update('stock', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.stock && <small className="text-[#F50078]">{errors.stock}</small>}</label>
           <label className="block text-sm font-medium">Estado<select value={form.status || 'draft'} onChange={(e) => update('status', e.target.value)} className="mt-1 w-full border border-[#E8E3DA] bg-white px-3 py-2.5">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="block text-sm font-medium">Descripción completa<textarea value={form.description} onChange={(e) => update('description', e.target.value)} className="mt-1 min-h-32 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" />{errors.description && <small className="text-[#F50078]">{errors.description}</small>}</label>
           <label className="block text-sm font-medium">Ficha técnica / puntos destacados <span className="font-normal text-[#667085]">(uno por línea)</span><textarea value={form.highlights || ''} onChange={(e) => update('highlights', e.target.value)} className="mt-1 min-h-24 w-full border border-[#E8E3DA] bg-white px-3 py-2.5" /></label>

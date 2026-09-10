@@ -6,12 +6,22 @@
 import React from 'react';
 import { Screen } from '../types';
 import { BookOpen, Zap } from 'lucide-react';
+import { renderBlocks } from '../lib/pageBlocks';
+import { usePageBlocks } from '../lib/usePageBlocks';
 
 interface CursosViewProps {
   onNavigate: (screen: Screen) => void;
 }
 
 export default function CursosView({ onNavigate }: CursosViewProps) {
+  const cursos = usePageBlocks('cursos');
+  if (cursos.page) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6]">
+        {renderBlocks(cursos.page.blocks)}
+      </div>
+    );
+  }
   return (
     <section className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 px-4 py-20">
       <div className="max-w-4xl mx-auto">
