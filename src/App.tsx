@@ -671,7 +671,7 @@ const handleLogoutClient = () => {
         )}
 
         {currentScreen === 'productos' && (
-          <ProductosView onNavigate={handleNavigate} />
+          <ProductosView onNavigate={handleNavigate} loggedInClient={loggedInClient} />
         )}
 
         {currentScreen === 'legal' && (

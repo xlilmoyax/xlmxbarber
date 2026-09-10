@@ -13,6 +13,16 @@ import {
   ShieldAlert, CheckCircle2, CreditCard
 } from 'lucide-react';
 
+const returnToProducts = () => {
+  if (sessionStorage.getItem('xlmx_return_to') === 'productos') {
+    sessionStorage.removeItem('xlmx_return_to');
+    sessionStorage.removeItem('xlmx_auth_tab');
+    return true;
+  }
+  sessionStorage.removeItem('xlmx_auth_tab');
+  return false;
+};
+
 interface AdminLoginViewProps {
   onNavigate: (screen: Screen) => void;
   onLoginSuccess: () => void;
@@ -30,7 +40,7 @@ export default function AdminLoginView({
   loggedInClient,
   setLoggedInClient
 }: AdminLoginViewProps) {
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>(() => sessionStorage.getItem('xlmx_auth_tab') === 'register' ? 'register' : 'login');
   const [clientEmail, setClientEmail] = useState('');
   
   // Registration Form States
@@ -81,6 +91,7 @@ export default function AdminLoginView({
         setSuccessMsg(`¡Bienvenido de vuelta, ${localUser.fullname}! Tu pasaporte digital está listo.`);
         setClientEmail('');
         setTimeout(() => setSuccessMsg(null), 5000);
+        if (returnToProducts()) onNavigate('productos');
       } else {
         setClientErrorMsg('El correo ingresado no coincide con ningún cliente registrado en este dispositivo.');
       }
@@ -105,6 +116,7 @@ export default function AdminLoginView({
           setSuccessMsg(`¡Bienvenido de vuelta, ${localUser.fullname}! Tu pasaporte digital está listo.`);
           setClientEmail('');
           setTimeout(() => setSuccessMsg(null), 5000);
+          if (returnToProducts()) onNavigate('productos');
           return;
         }
         throw error;
@@ -116,6 +128,7 @@ export default function AdminLoginView({
         setSuccessMsg(`¡Bienvenido de vuelta, ${mappedUser.fullname}! Tu pasaporte digital está listo.`);
         setClientEmail('');
         setTimeout(() => setSuccessMsg(null), 5000);
+        if (returnToProducts()) onNavigate('productos');
       } else {
         const localUser = users.find((user) => user.email.trim().toLowerCase() === sanitizedEmail);
         if (localUser) {
@@ -123,6 +136,7 @@ export default function AdminLoginView({
           setSuccessMsg(`¡Bienvenido de vuelta, ${localUser.fullname}! Tu pasaporte digital está listo.`);
           setClientEmail('');
           setTimeout(() => setSuccessMsg(null), 5000);
+          if (returnToProducts()) onNavigate('productos');
           return;
         }
         setClientErrorMsg('El correo ingresado no coincide con ningún cliente registrado. Por favor, crea un perfil en la pestaña "Registrarse".');
@@ -137,6 +151,7 @@ export default function AdminLoginView({
         setSuccessMsg(`¡Bienvenido de vuelta, ${fallbackUser.fullname}! Se cargó tu perfil desde el caché local.`);
         setClientEmail('');
         setTimeout(() => setSuccessMsg(null), 5000);
+        if (returnToProducts()) onNavigate('productos');
       } else {
         setClientErrorMsg('Error de conexión al verificar el usuario. Por favor intenta de nuevo.');
       }
@@ -243,6 +258,8 @@ export default function AdminLoginView({
       setTimeout(() => {
         setSuccessMsg(null);
       }, 5000);
+
+      if (returnToProducts()) onNavigate('productos');
     } catch (err: any) {
       console.error(err);
       setClientErrorMsg('Error al registrar tu cuenta en el servidor: ' + err.message);

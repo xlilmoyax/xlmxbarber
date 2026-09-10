@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Screen } from '../types';
+import { Screen, RegisteredUser, Category, HeroConfig } from '../types';
 import { supabase } from '../lib/supabaseClient';
-import { Search, Filter, X, ChevronRight, ChevronDown, ShoppingBag, MessageCircle, ArrowLeft, Star, Clock } from 'lucide-react';
+import { Search, Filter, X, ChevronRight, ChevronDown, ShoppingBag, MessageCircle, ArrowLeft, Star, Lock, LogIn } from 'lucide-react';
 
 interface ProductosViewProps {
   onNavigate: (screen: Screen) => void;
+  loggedInClient?: RegisteredUser | null;
 }
 
 type Product = {
@@ -24,21 +25,18 @@ type Product = {
   image_urls: string[];
 };
 
-type Category = {
-  id: string;
-  name: string;
-};
-
-// Categorías fijas, pero también extraeremos dinámicas
 const DEFAULT_CATEGORIES: Category[] = [
   { id: '00000000-0000-0000-0000-000000000001', name: 'Barbería' },
   { id: '00000000-0000-0000-0000-000000000002', name: 'Capilar' },
   { id: '00000000-0000-0000-0000-000000000003', name: 'Dermacosmética' },
 ];
 
-export default function ProductosView({ onNavigate }: ProductosViewProps) {
+const WHATSAPP_NUMBER = '5493516851403';
+
+export default function ProductosView({ onNavigate, loggedInClient }: ProductosViewProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [heroConfig, setHeroConfig] = useState<HeroConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -47,7 +45,9 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
-  const [sortBy, setSortBy] = useState('newest'); // newest, price_asc, price_desc
+  const [sortBy, setSortBy] = useState('newest');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authProduct, setAuthProduct] = useState<Product | null>(null);
 
   // Detalle de producto
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -58,7 +58,9 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
   useEffect(() => {
     fetchProducts();
-    
+    fetchCategories();
+    fetchHeroConfig();
+
     // Suscripción a cambios en productos
     const channel = supabase.channel('public:products')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
@@ -66,15 +68,28 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
       })
       .subscribe();
 
+    const categoriesChannel = supabase.channel('public:categories')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
+        fetchCategories();
+      })
+      .subscribe();
+
+    const heroChannel = supabase.channel('public:hero_config')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hero_config' }, () => {
+        fetchHeroConfig();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(categoriesChannel);
+      supabase.removeChannel(heroChannel);
     };
   }, []);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      // Fetch productos publicados
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -84,8 +99,6 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
       if (productsData) {
         setProducts(productsData);
-        // Extraer categorías dinámicamente si es posible, pero usaremos DEFAULT_CATEGORIES mapeado a los IDs encontrados
-        // para tener los nombres, ya que supabase puede no tener tabla de categories
       }
     } catch (err: any) {
       console.error('Error fetching products:', err);
@@ -95,14 +108,51 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setCategories(data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  const fetchHeroConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hero_config')
+        .select('*')
+        .eq('active', true)
+        .maybeSingle();
+
+      if (!error && data) {
+        setHeroConfig(data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching hero config:', err);
+    }
+  };
+
   const filteredProducts = products
     .filter(p => selectedCategory === 'all' || p.category_id === selectedCategory)
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'price_asc') return a.price - b.price;
       if (sortBy === 'price_desc') return b.price - a.price;
-      return 0; // newest/default - asumiendo orden de DB
+      return 0;
     });
+
+  const featuredProducts = heroConfig?.featured_product_ids?.length
+    ? products.filter(p => heroConfig.featured_product_ids!.includes(p.id)).slice(0, 4)
+    : [];
 
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'General';
 
@@ -110,9 +160,42 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price);
   };
 
-  const handleWhatsAppInquiry = (product: Product) => {
-    const text = `Hola XLMX Barber, estoy interesado/a en adquirir el producto: *${product.name}* (${formatPrice(product.price)}). ¿Tienen disponibilidad?`;
-    window.open(`https://wa.me/5493516851403?text=${encodeURIComponent(text)}`, '_blank');
+  const requireAuth = (product: Product) => {
+    if (!loggedInClient) {
+      setAuthProduct(product);
+      setShowAuthModal(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleWhatsAppInquiry = async (product: Product) => {
+    if (!requireAuth(product) || !loggedInClient) return;
+
+    const unitPrice = Number(product.price) || 0;
+    const qty = quantity || 1;
+    const totalPrice = unitPrice * qty;
+
+    try {
+      await supabase.from('orders').insert({
+        user_id: loggedInClient.id,
+        user_name: loggedInClient.fullname,
+        user_email: loggedInClient.email,
+        product_id: product.id,
+        product_name: product.name,
+        quantity: qty,
+        price_at_time: unitPrice,
+        total: totalPrice,
+        status: 'Consulta enviada',
+        whatsapp_sent_at: new Date().toISOString(),
+      });
+      console.log('Pedido registrado en Supabase');
+    } catch (err) {
+      console.error('Error al registrar pedido:', err);
+    }
+
+    const text = `Hola XLMX Barber, soy ${loggedInClient.fullname}. Estoy interesado/a en adquirir el producto: *${product.name}*${qty > 1 ? ` (x${qty})` : ''} por ${formatPrice(totalPrice)}.${product.stock <= 0 ? ' Veo que está sin stock por el momento, ¿cuándo reabastecerán?' : ' ¿Tienen disponibilidad?'} Mi email es ${loggedInClient.email}.`;
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   // Render vacío si no hay productos en BD
@@ -135,13 +218,12 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
   // Vista de Detalle de Producto
   if (selectedProduct) {
-    const images = selectedProduct.image_urls && selectedProduct.image_urls.length > 0 
-      ? selectedProduct.image_urls 
+    const images = selectedProduct.image_urls && selectedProduct.image_urls.length > 0
+      ? selectedProduct.image_urls
       : (selectedProduct.image_url ? [selectedProduct.image_url] : ['https://via.placeholder.com/600x600?text=XLMX+BARBER']);
-      
+
     const highlightsList = selectedProduct.highlights ? selectedProduct.highlights.split('\n').filter(Boolean) : [];
 
-    // Recomendados: Mismo category_id pero distinto id
     const relatedProducts = products
       .filter(p => p.category_id === selectedProduct.category_id && p.id !== selectedProduct.id)
       .slice(0, 4);
@@ -149,7 +231,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
     return (
       <div className="min-h-screen bg-white pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
+
           {/* Migas de pan */}
           <nav className="flex items-center text-sm text-zinc-500 mb-8 overflow-x-auto whitespace-nowrap pb-2">
             <button onClick={() => onNavigate('home')} className="hover:text-amber-600">Inicio</button>
@@ -173,8 +255,8 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
               {images.length > 1 && (
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                   {images.map((img, idx) => (
-                    <button 
-                      key={idx} 
+                    <button
+                      key={idx}
                       onClick={() => setActiveImageIndex(idx)}
                       className={`shrink-0 w-24 h-24 object-cover border transition-all ${activeImageIndex === idx ? 'border-amber-500' : 'border-zinc-200 hover:border-zinc-300'}`}
                     >
@@ -189,15 +271,13 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
             <div className="flex flex-col">
               <span className="text-sm tracking-widest text-amber-600 font-semibold uppercase mb-2">{getCategoryName(selectedProduct.category_id)}</span>
               <h1 className="font-display text-3xl sm:text-4xl text-zinc-900 mb-4 leading-tight">{selectedProduct.name}</h1>
-              
+
               <div className="flex items-end gap-3 mb-6">
                 <span className="text-2xl font-semibold text-zinc-900">{formatPrice(selectedProduct.price)}</span>
                 {selectedProduct.original_price && selectedProduct.original_price > selectedProduct.price && (
                   <span className="text-lg text-zinc-400 line-through mb-0.5">{formatPrice(selectedProduct.original_price)}</span>
                 )}
               </div>
-
-
 
               <div className="flex items-center gap-4 mb-8">
                 <div className="flex items-center border border-zinc-200">
@@ -207,26 +287,21 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                 </div>
                 <div className="text-sm text-zinc-500">
                   {selectedProduct.stock > 0 ? (
-                    <span className="flex items-center text-emerald-600"><Check className="h-4 w-4 mr-1"/> En stock ({selectedProduct.stock})</span>
+                    <span className="flex items-center text-emerald-600"><Check className="h-4 w-4 mr-1" /> En stock ({selectedProduct.stock})</span>
                   ) : (
-                    <span className="flex items-center text-red-500"><X className="h-4 w-4 mr-1"/> Agotado</span>
+                    <span className="flex items-center text-red-500"><X className="h-4 w-4 mr-1" /> Agotado</span>
                   )}
                 </div>
               </div>
 
               <div className="flex flex-col gap-3 mt-auto">
-                <button 
-                  disabled={selectedProduct.stock <= 0}
-                  className="w-full bg-zinc-900 text-amber-400 py-4 text-sm uppercase tracking-widest font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {selectedProduct.stock > 0 ? 'Agregar al Carrito (Próximamente)' : 'Sin stock momentáneo'}
-                </button>
-                <button 
+                <button
                   onClick={() => handleWhatsAppInquiry(selectedProduct)}
                   className="w-full bg-emerald-50 text-emerald-700 border border-emerald-200 py-4 text-sm uppercase tracking-widest font-semibold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
                 >
-                  <MessageCircle className="h-5 w-5" /> Consultar por WhatsApp
+                  <MessageCircle className="h-5 w-5" /> {selectedProduct.stock > 0 ? 'Consultar por WhatsApp' : 'Consultar disponibilidad'}
                 </button>
+                {loggedInClient && <p className="text-xs text-zinc-500 text-center">Consultando como {loggedInClient.fullname}</p>}
               </div>
 
               {/* Indicadores de Confianza */}
@@ -311,27 +386,61 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
   return (
     <div className="min-h-screen bg-white pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header Tienda */}
-        <div className="text-center mb-12">
-          <h1 className="font-display text-4xl text-zinc-900 mb-4">Catálogo Exclusivo</h1>
-          <p className="text-zinc-500 max-w-2xl mx-auto">Selección de productos profesionales utilizados por nuestros expertos. Eleva tu rutina de cuidado con las mejores marcas.</p>
-        </div>
+
+        {/* Header Tienda - Hero dinámico o estático */}
+        {heroConfig ? (
+          <div className="relative mb-12 overflow-hidden">
+            {heroConfig.main_image_url && (
+              <div className="absolute inset-0">
+                <img src={heroConfig.main_image_url} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-zinc-950/70"></div>
+              </div>
+            )}
+            <div className="relative py-20 px-6 text-center">
+              <h1 className="font-display text-4xl md:text-5xl text-white mb-4">{heroConfig.title || 'Catálogo Exclusivo'}</h1>
+              {heroConfig.subtitle && <p className="text-amber-300/90 text-sm tracking-[0.2em] uppercase mb-4">{heroConfig.subtitle}</p>}
+              {heroConfig.description && <p className="text-zinc-200 max-w-2xl mx-auto mb-8">{heroConfig.description}</p>}
+              <button onClick={() => { if (heroConfig.cta_action === 'home') onNavigate('home'); }} className="px-8 py-3 bg-amber-400 text-zinc-900 uppercase tracking-widest text-sm font-semibold hover:bg-amber-300 transition-colors">
+                {heroConfig.cta_label || 'Ver catálogo'}
+              </button>
+
+              {featuredProducts.length > 0 && (
+                <div className="mt-12">
+                  <p className="text-xs tracking-[0.2em] text-amber-300/80 uppercase mb-4">Productos destacados</p>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    {featuredProducts.map(p => (
+                      <button key={p.id} onClick={() => { setSelectedProduct(p); window.scrollTo(0,0); setActiveImageIndex(0); setQuantity(1); }} className="group bg-white/10 backdrop-blur border border-white/20 p-3 w-40 text-left hover:bg-white/20 transition-colors">
+                        <img src={p.image_url || (p.image_urls?.[0]) || 'https://via.placeholder.com/200x200?text=XLMX'} alt={p.name} className="w-full aspect-square object-cover mb-2" />
+                        <span className="block text-xs text-white truncate">{p.name}</span>
+                        <span className="block text-xs text-amber-300 mt-1">{formatPrice(p.price)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center mb-12">
+            <h1 className="font-display text-4xl text-zinc-900 mb-4">Catálogo Exclusivo</h1>
+            <p className="text-zinc-500 max-w-2xl mx-auto">Selección de productos profesionales utilizados por nuestros expertos. Eleva tu rutina de cuidado con las mejores marcas.</p>
+          </div>
+        )}
 
         {/* Toolbar (Buscador y Orden) */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 pb-4 border-b border-zinc-200">
-          <button 
+          <button
             className="lg:hidden w-full sm:w-auto flex items-center justify-center gap-2 border border-zinc-300 px-4 py-2 bg-white text-sm"
             onClick={() => setShowFiltersMobile(true)}
           >
             <Filter className="h-4 w-4" /> Filtros
           </button>
-          
+
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-            <input 
-              type="text" 
-              placeholder="Buscar productos..." 
+            <input
+              type="text"
+              placeholder="Buscar productos..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-zinc-200 bg-white text-sm focus:outline-none focus:border-amber-500"
@@ -340,8 +449,8 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <span className="text-sm text-zinc-500 whitespace-nowrap">Ordenar por:</span>
-            <select 
-              value={sortBy} 
+            <select
+              value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="w-full sm:w-auto border border-zinc-200 bg-white text-sm py-2 px-3 focus:outline-none focus:border-amber-500"
             >
@@ -359,7 +468,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
               <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-6">Categorías</h3>
               <ul className="space-y-3">
                 <li>
-                  <button 
+                  <button
                     onClick={() => setSelectedCategory('all')}
                     className={`text-sm hover:text-amber-600 transition-colors ${selectedCategory === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
                   >
@@ -368,7 +477,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                 </li>
                 {categories.map(c => (
                   <li key={c.id}>
-                    <button 
+                    <button
                       onClick={() => setSelectedCategory(c.id)}
                       className={`text-sm hover:text-amber-600 transition-colors text-left ${selectedCategory === c.id ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
                     >
@@ -377,6 +486,13 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                   </li>
                 ))}
               </ul>
+              {!loggedInClient && (
+                <div className="mt-8 border border-zinc-200 p-4">
+                  <p className="text-sm font-semibold text-zinc-900 flex items-center gap-2 mb-2"><Lock className="h-4 w-4 text-amber-500" /> Inicia sesión para comprar</p>
+                  <p className="text-xs text-zinc-500 mb-3">Necesitas estar registrado para consultar o comprar productos.</p>
+                  <button onClick={() => onNavigate('registro')} className="w-full bg-zinc-900 text-amber-400 py-2 text-xs font-semibold uppercase tracking-widest">Registrarse / Iniciar sesión</button>
+                </div>
+              )}
             </div>
           </aside>
 
@@ -389,10 +505,10 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
             ) : filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
                 {filteredProducts.map(product => (
-                  <ProductCard 
-                    key={product.id} 
-                    product={product} 
-                    onClick={() => { setSelectedProduct(product); window.scrollTo(0,0); setActiveImageIndex(0); setQuantity(1); }} 
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onClick={() => { setSelectedProduct(product); window.scrollTo(0,0); setActiveImageIndex(0); setQuantity(1); }}
                     categoryName={getCategoryName(product.category_id)}
                     formatPrice={formatPrice}
                   />
@@ -426,7 +542,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
               <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-4 mt-2">Categorías</h3>
               <ul className="space-y-4">
                 <li>
-                  <button 
+                  <button
                     onClick={() => { setSelectedCategory('all'); setShowFiltersMobile(false); }}
                     className={`block w-full text-left text-sm ${selectedCategory === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
                   >
@@ -435,7 +551,7 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                 </li>
                 {categories.map(c => (
                   <li key={c.id}>
-                    <button 
+                    <button
                       onClick={() => { setSelectedCategory(c.id); setShowFiltersMobile(false); }}
                       className={`block w-full text-left text-sm ${selectedCategory === c.id ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
                     >
@@ -444,9 +560,59 @@ export default function ProductosView({ onNavigate }: ProductosViewProps) {
                   </li>
                 ))}
               </ul>
+              {!loggedInClient && (
+                <div className="mt-8 border border-zinc-200 p-4">
+                  <p className="text-sm font-semibold text-zinc-900 mb-2">Inicia sesión para comprar</p>
+                  <p className="text-xs text-zinc-500 mb-3">Necesitas estar registrado para consultar o comprar productos.</p>
+                  <button onClick={() => { setShowFiltersMobile(false); onNavigate('registro'); }} className="w-full bg-zinc-900 text-amber-400 py-2 text-xs font-semibold uppercase tracking-widest">Registrarse / Iniciar sesión</button>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t border-zinc-100 mt-auto">
               <button onClick={() => setShowFiltersMobile(false)} className="w-full bg-zinc-900 text-white py-3 text-sm font-semibold tracking-widest uppercase">Aplicar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Autenticación */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+          <div className="fixed inset-0 bg-black/60" onClick={() => setShowAuthModal(false)}></div>
+          <div className="relative bg-white max-w-md w-full p-8 shadow-2xl">
+            <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-900">
+              <X className="h-5 w-5" />
+            </button>
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-6">
+              <Lock className="h-8 w-8 text-amber-600" />
+            </div>
+            <h3 className="font-display text-2xl text-zinc-900 mb-3">Necesitas iniciar sesión</h3>
+            <p className="text-zinc-500 text-sm mb-6">
+              {authProduct ? `Para consultar o comprar "${authProduct.name}" necesitas estar registrado en XLMX Barber.` : 'Para realizar esta acción necesitas estar registrado.'}
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('xlmx_auth_tab', 'register');
+                  sessionStorage.setItem('xlmx_return_to', 'productos');
+                  setShowAuthModal(false);
+                  onNavigate('login-admin');
+                }}
+                className="w-full bg-amber-400 text-zinc-900 py-3 text-sm font-semibold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-amber-300 transition-colors"
+              >
+                <LogIn className="h-4 w-4" /> Registrarse
+              </button>
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('xlmx_auth_tab', 'login');
+                  sessionStorage.setItem('xlmx_return_to', 'productos');
+                  setShowAuthModal(false);
+                  onNavigate('login-admin');
+                }}
+                className="w-full border border-zinc-300 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
+              >
+                Ya tengo cuenta (iniciar sesión)
+              </button>
             </div>
           </div>
         </div>
@@ -463,13 +629,13 @@ function Check(props: any) {
 // Componente Tarjeta
 function ProductCard({ product, onClick, categoryName, formatPrice }: { product: Product, onClick: () => void, categoryName: string, formatPrice: (price: number) => string }) {
   const imageUrl = product.image_url || (product.image_urls && product.image_urls[0]) || 'https://via.placeholder.com/400x500?text=XLMX';
-  
+
   return (
     <div className="group cursor-pointer flex flex-col" onClick={onClick}>
       <div className="relative aspect-[4/5] bg-white border border-zinc-100 overflow-hidden mb-4">
-        <img 
-          src={imageUrl} 
-          alt={product.name} 
+        <img
+          src={imageUrl}
+          alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
         />
         {/* Badges */}
@@ -477,7 +643,7 @@ function ProductCard({ product, onClick, categoryName, formatPrice }: { product:
           {product.is_new && <span className="bg-zinc-900 text-white text-[10px] px-2 py-1 font-semibold uppercase tracking-widest">Nuevo</span>}
           {product.original_price && product.original_price > product.price && <span className="bg-amber-500 text-white text-[10px] px-2 py-1 font-semibold uppercase tracking-widest">Oferta</span>}
         </div>
-        
+
         {/* Overlay Hover Action */}
         <div className="absolute inset-x-0 bottom-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-4 group-hover:translate-y-0">
           <button className="w-full bg-zinc-900/95 backdrop-blur text-white text-xs py-3 font-semibold tracking-widest uppercase">Ver Detalles</button>
