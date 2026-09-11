@@ -3,6 +3,7 @@ import { Screen, RegisteredUser, Category, Order, HeroConfig } from '../types';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import ProductEditor from './ProductEditor';
 import PagesManager from './PageEditor';
+import CoursesManager from './CoursesManager';
 import { getDiscountInfo } from '../lib/productHelpers';
 import { BarChart3, BookOpen, ChevronDown, ExternalLink, FolderTree, Image, LayoutDashboard, LogOut, MessageSquareQuote, Package, Plus, RefreshCw, Settings, ShoppingCart, Trash2, Users, Check, X, Save } from 'lucide-react';
 
@@ -407,7 +408,7 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
         )}
 
         {/* ============ COURSES ============ */}
-        {area === 'courses' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">{[['Cursos', courseMetrics.courses], ['Secciones', courseMetrics.sections], ['Lecciones', courseMetrics.lessons], ['Videos', courseMetrics.videos], ['Alumnos con acceso', courseMetrics.accesses]].map(([label, value]) => <div key={String(label)} className="border border-[#E8E3DA] bg-white p-4"><p className="text-xs text-[#667085]">{label}</p><p className="mt-3 font-display text-2xl">{value}</p></div>)}</div>{courses.length === 0 ? <div className="border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center"><BookOpen className="mx-auto mb-3 h-8 w-8 text-[#C9A24D]" /><h3 className="font-display text-xl">0 cursos</h3><p className="mx-auto mt-2 max-w-md text-sm text-[#667085]">Aún no hay cursos, secciones, lecciones ni videos.</p></div> : courses.map((course) => <article key={course.id} className="mb-3 border border-[#E8E3DA] bg-white p-5"><h3 className="font-display text-xl">{course.title}</h3><p className="text-sm text-[#667085]">{course.description}</p></article>)}</section>}
+        {area === 'courses' && <CoursesManager onNavigate={onNavigate} />}
 
         {/* ============ PAGES ============ */}
         {area === 'pages' && <PagesManager />}
