@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Filter, ChevronDown, ChevronUp, MoreVertical, Edit, Trash2, Eye, Copy, BookOpen, Video, Users, BarChart2, Settings, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { fetchCourses, fetchCategories, fetchCourseTypes, fetchCourseMetrics, grantCourseAccess, revokeCourseAccess, updateCourseAccess, generateSlug } from '../lib/courseHelpers';
+import { fetchCourses, fetchCategories, fetchCourseTypes, fetchCourseMetrics, grantCourseAccess, revokeCourseAccess, updateCourseAccess, generateSlug, reorderItems } from '../lib/courseHelpers';
 import type { Course, CourseCategory, CourseStatus, CourseAccess } from '../types';
 
 interface CoursesManagerProps {
@@ -607,19 +607,328 @@ function Field({ label, children, className = '' }: { label: string; children: R
     );
 }
 
-/* ---------- CourseSectionsManager (placeholder) ---------- */
+/* ---------- CourseSectionsManager (drag & drop) ---------- */
 
 function CourseSectionsManager({ course, onBack }: any) {
+    const [sections, setSections] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showSectionForm, setShowSectionForm] = useState(false);
+    const [editingSection, setEditingSection] = useState<any>(null);
+    const [showLessonForm, setShowLessonForm] = useState<string | null>(null);
+    const [editingLesson, setEditingLesson] = useState<any>(null);
+    const [sectionForm, setSectionForm] = useState({ title: '', description: '' });
+    const [lessonForms, setLessonForms] = useState<Record<string, { title: string; description: string; estimated_duration_minutes: number }>>({});
+
+    useEffect(() => {
+        loadSections();
+    }, [course]);
+
+    const loadSections = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('course_sections')
+                .select(`
+                    *,
+                    lessons:course_lessons(*)
+                `)
+                .eq('course_id', course.id)
+                .order('sort_order');
+            if (error) throw error;
+            setSections((data || []).map(s => ({ ...s, lessons: (s.lessons || []).sort((a: any, b: any) => a.sort_order - b.sort_order) })));
+        } catch (err) {
+            console.error('Error cargando secciones:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const saveSection = async () => {
+        if (!sectionForm.title.trim()) return;
+        setLoading(true);
+        try {
+            const payload = {
+                course_id: course.id,
+                title: sectionForm.title,
+                description: sectionForm.description,
+                sort_order: sections.length,
+            };
+            if (editingSection) {
+                const { error } = await supabase.from('course_sections').update(payload).eq('id', editingSection.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('course_sections').insert({ ...payload, id: crypto.randomUUID() });
+                if (error) throw error;
+            }
+            setShowSectionForm(false);
+            setEditingSection(null);
+            setSectionForm({ title: '', description: '' });
+            loadSections();
+        } catch (err) {
+            console.error('Error guardando sección:', err);
+            alert('Error al guardar la sección');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteSection = async (sectionId: string) => {
+        if (!confirm('¿Eliminar esta sección y todas sus lecciones?')) return;
+        try {
+            const { error } = await supabase.from('course_sections').delete().eq('id', sectionId);
+            if (error) throw error;
+            loadSections();
+        } catch (err) {
+            console.error('Error eliminando sección:', err);
+            alert('Error al eliminar la sección');
+        }
+    };
+
+    const saveLesson = async (sectionId: string) => {
+        const form = lessonForms[sectionId];
+        if (!form?.title.trim()) return;
+        setLoading(true);
+        try {
+            const sectionLessons = sections.find(s => s.id === sectionId)?.lessons || [];
+            const payload = {
+                section_id: sectionId,
+                title: form.title,
+                description: form.description,
+                estimated_duration_minutes: form.estimated_duration_minutes,
+                sort_order: sectionLessons.length,
+                status: 'borrador',
+            };
+            if (editingLesson) {
+                const { error } = await supabase.from('course_lessons').update(payload).eq('id', editingLesson.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('course_lessons').insert({ ...payload, id: crypto.randomUUID() });
+                if (error) throw error;
+            }
+            setShowLessonForm(null);
+            setEditingLesson(null);
+            setLessonForms(prev => ({ ...prev, [sectionId]: { title: '', description: '', estimated_duration_minutes: 0 } }));
+            loadSections();
+        } catch (err) {
+            console.error('Error guardando lección:', err);
+            alert('Error al guardar la lección');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteLesson = async (lessonId: string) => {
+        if (!confirm('¿Eliminar esta lección y sus videos?')) return;
+        try {
+            const { error } = await supabase.from('course_lessons').delete().eq('id', lessonId);
+            if (error) throw error;
+            loadSections();
+        } catch (err) {
+            console.error('Error eliminando lección:', err);
+            alert('Error al eliminar la lección');
+        }
+    };
+
+    // Drag & drop para secciones
+    const handleSectionDragStart = (e: React.DragEvent, section: any) => {
+        e.dataTransfer.setData('sectionId', section.id);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleSectionDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleSectionDrop = (e: React.DragEvent, targetSection: any) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData('sectionId');
+        if (draggedId === targetSection.id) return;
+        const newSections = reorderItems(sections, sections.findIndex(s => s.id === draggedId), sections.findIndex(s => s.id === targetSection.id));
+        setSections(newSections);
+        // Persistir orden
+        newSections.forEach((s, i) => supabase.from('course_sections').update({ sort_order: i }).eq('id', s.id));
+    };
+
+    // Drag & drop para lecciones dentro de una sección
+    const handleLessonDragStart = (e: React.DragEvent, lesson: any) => {
+        e.dataTransfer.setData('lessonId', lesson.id);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleLessonDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleLessonDrop = (e: React.DragEvent, sectionId: string, targetLesson: any) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData('lessonId');
+        if (draggedId === targetLesson.id) return;
+        const section = sections.find(s => s.id === sectionId);
+        if (!section) return;
+        const lessons = [...section.lessons];
+        const newLessons = reorderItems(lessons, lessons.findIndex(l => l.id === draggedId), lessons.findIndex(l => l.id === targetLesson.id));
+        setSections(sections.map(s => s.id === sectionId ? { ...s, lessons: newLessons } : s));
+        // Persistir orden
+        newLessons.forEach((l, i) => supabase.from('course_lessons').update({ sort_order: i }).eq('id', l.id));
+    };
+
     return (
         <div className="max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Secciones de: {course.title}</h2>
+                <h2 className="text-xl font-semibold">Secciones y Lecciones: {course.title}</h2>
                 <button onClick={onBack} className="text-zinc-500 hover:text-zinc-700">← Volver</button>
             </div>
-            <div className="bg-white border border-zinc-200 rounded-xl p-8 text-center text-zinc-500">
-                <BookOpen className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
-                <p>Gestión de secciones y lecciones con drag & drop (próximamente)</p>
+
+            {/* Crear sección */}
+            <div className="mb-6">
+                <button onClick={() => { setEditingSection(null); setSectionForm({ title: '', description: '' }); setShowSectionForm(true); }} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-lg flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Nueva Sección
+                </button>
             </div>
+
+            {showSectionForm && (
+                <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
+                    <h3 className="font-semibold mb-4">{editingSection ? 'Editar Sección' : 'Nueva Sección'}</h3>
+                    <div className="grid gap-4 sm:grid-cols-2 mb-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Título *</label>
+                            <input
+                                value={sectionForm.title}
+                                onChange={e => setSectionForm({ ...sectionForm, title: e.target.value })}
+                                className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                placeholder="Ej: Módulo 1: Fundamentos"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Descripción</label>
+                            <input
+                                value={sectionForm.description}
+                                onChange={e => setSectionForm({ ...sectionForm, description: e.target.value })}
+                                className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                placeholder="Descripción breve del módulo"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <button onClick={() => { setShowSectionForm(false); setEditingSection(null); setSectionForm({ title: '', description: '' }); }} className="px-4 py-2 border border-zinc-300 rounded-lg">Cancelar</button>
+                        <button onClick={saveSection} disabled={loading} className="px-4 py-2 bg-amber-500 text-white rounded-lg disabled:opacity-50">{loading ? 'Guardando...' : 'Guardar'}</button>
+                    </div>
+                </div>
+            )}
+
+            {loading ? (
+                <div className="text-center py-12">Cargando...</div>
+            ) : sections.length === 0 ? (
+                <div className="bg-white border border-dashed border-zinc-200 rounded-xl p-12 text-center text-zinc-500">
+                    <BookOpen className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
+                    <p className="mb-2">No hay secciones aún</p>
+                    <button onClick={() => { setEditingSection(null); setSectionForm({ title: '', description: '' }); setShowSectionForm(true); }} className="px-4 py-2 bg-amber-500 text-white rounded-lg">Crear primera sección</button>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {sections.map((section, sectionIndex) => (
+                        <div key={section.id} className="bg-white border border-zinc-200 rounded-xl overflow-hidden" draggable onDragStart={e => handleSectionDragStart(e, section)} onDragOver={handleSectionDragOver} onDrop={e => handleSectionDrop(e, section)}>
+                            {/* Header de sección */}
+                            <div className="bg-zinc-50 border-b border-zinc-200 p-4 flex items-center justify-between gap-4 cursor-move">
+                                <div className="flex items-center gap-3">
+                                    <GripVertical className="w-5 h-5 text-zinc-400 cursor-move" />
+                                    <div>
+                                        <h3 className="font-semibold text-zinc-900">{section.title}</h3>
+                                        <p className="text-sm text-zinc-500">{section.description || 'Sin descripción'} · {section.lessons?.length || 0} lección(es)</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => { setEditingSection(section); setSectionForm({ title: section.title, description: section.description || '' }); setShowSectionForm(true); }} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded" title="Editar">✏️</button>
+                                    <button onClick={() => { setShowLessonForm(section.id); setLessonForms(prev => ({ ...prev, [section.id]: { title: '', description: '', estimated_duration_minutes: 0 } })); }} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded" title="Agregar lección">+ Lección</button>
+                                    <button onClick={() => deleteSection(section.id)} className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="Eliminar">🗑️</button>
+                                </div>
+                            </div>
+
+                            {/* Lecciones de la sección */}
+                            <div className="p-4 space-y-3">
+                                {section.lessons?.length === 0 ? (
+                                    <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-lg">
+                                        <p className="mb-2">No hay lecciones en esta sección</p>
+                                        <button onClick={() => { setShowLessonForm(section.id); setLessonForms(prev => ({ ...prev, [section.id]: { title: '', description: '', estimated_duration_minutes: 0 } })); }} className="text-sm text-amber-600 hover:underline">Agregar primera lección</button>
+                                    </div>
+                                ) : (
+                                    section.lessons.map((lesson: any, lessonIndex: number) => (
+                                        <div
+                                            key={lesson.id}
+                                            className="border border-zinc-200 rounded-lg p-4 hover:border-amber-300 transition-colors flex items-center gap-4"
+                                            draggable
+                                            onDragStart={e => handleLessonDragStart(e, lesson)}
+                                            onDragOver={handleLessonDragOver}
+                                            onDrop={e => handleLessonDrop(e, section.id, lesson)}
+                                        >
+                                            <GripVertical className="w-5 h-5 text-zinc-400 cursor-move flex-shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="font-medium text-zinc-900 truncate">{lesson.title}</h4>
+                                                    <span className={`px-2 py-0.5 text-xs rounded ${lesson.status === 'publicado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{lesson.status}</span>
+                                                </div>
+                                                {lesson.description && <p className="text-sm text-zinc-500 truncate">{lesson.description}</p>}
+                                                <div className="flex items-center gap-4 mt-1 text-xs text-zinc-400">
+                                                    {lesson.estimated_duration_minutes && <span>⏱ {lesson.estimated_duration_minutes} min</span>}
+                                                    <span>Orden: {lesson.sort_order + 1}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                <button onClick={() => { setEditingLesson(lesson); setShowLessonForm(section.id); setLessonForms(prev => ({ ...prev, [section.id]: { title: lesson.title, description: lesson.description || '', estimated_duration_minutes: lesson.estimated_duration_minutes || 0 } })); }} className="p-1.5 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded" title="Editar">✏️</button>
+                                                <button onClick={() => deleteLesson(lesson.id)} className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="Eliminar">🗑️</button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+
+                                {/* Formulario de lección */}
+                                {showLessonForm === section.id && (
+                                    <div className="border-t border-zinc-200 pt-4 mt-4">
+                                        <h4 className="font-medium mb-3">{editingLesson ? 'Editar Lección' : 'Nueva Lección'}</h4>
+                                        <div className="grid gap-4 sm:grid-cols-2 mb-4">
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">Título *</label>
+                                                <input
+                                                    value={lessonForms[section.id]?.title || ''}
+                                                    onChange={e => setLessonForms(prev => ({ ...prev, [section.id]: { ...prev[section.id], title: e.target.value } }))}
+                                                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                                    placeholder="Ej: Introducción a las herramientas"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">Duración estimada (min)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={lessonForms[section.id]?.estimated_duration_minutes || 0}
+                                                    onChange={e => setLessonForms(prev => ({ ...prev, [section.id]: { ...prev[section.id], estimated_duration_minutes: parseInt(e.target.value) || 0 } }))}
+                                                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                                />
+                                            </div>
+                                            <div className="sm:col-span-2">
+                                                <label className="block text-sm font-medium mb-1">Descripción</label>
+                                                <textarea
+                                                    value={lessonForms[section.id]?.description || ''}
+                                                    onChange={e => setLessonForms(prev => ({ ...prev, [section.id]: { ...prev[section.id], description: e.target.value } }))}
+                                                    rows={3}
+                                                    className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                                    placeholder="Descripción de la lección..."
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => { setShowLessonForm(null); setEditingLesson(null); }} className="px-4 py-2 border border-zinc-300 rounded-lg">Cancelar</button>
+                                            <button onClick={() => saveLesson(section.id)} disabled={loading} className="px-4 py-2 bg-amber-500 text-white rounded-lg disabled:opacity-50">{loading ? 'Guardando...' : (editingLesson ? 'Actualizar' : 'Crear')}</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
