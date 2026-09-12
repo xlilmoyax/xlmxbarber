@@ -138,8 +138,11 @@ create table if not exists public.course_accesses (
     revoked_at timestamptz,
     revoked_by uuid references auth.users(id),
     notes text,                          -- notas internas del admin
+    updated_at timestamptz not null default now(),
     unique (course_id, user_id)
 );
+-- Por si la tabla ya existía sin la columna
+alter table public.course_accesses add column if not exists updated_at timestamptz not null default now();
 
 -- Progreso de alumnos
 create table if not exists public.student_progress (
