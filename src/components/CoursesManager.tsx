@@ -2,9 +2,9 @@
  * Panel de gestión de Cursos para administradores
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Filter, ChevronDown, ChevronUp, MoreVertical, Edit, Trash2, Eye, Copy, BookOpen, Video, Users, BarChart2, Settings, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { Plus, Search, Filter, ChevronDown, ChevronUp, MoreVertical, Edit, Trash2, Eye, Copy, BookOpen, Video, Users, BarChart2, Settings, ArrowUp, ArrowDown, GripVertical, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { fetchCourses, fetchCategories, fetchCourseTypes, fetchCourseMetrics, grantCourseAccess, revokeCourseAccess, updateCourseAccess, generateSlug, reorderItems } from '../lib/courseHelpers';
+import { fetchCourses, fetchCategories, fetchCourseTypes, fetchCourseMetrics, grantCourseAccess, revokeCourseAccess, updateCourseAccess, generateSlug, reorderItems, uploadCourseVideo, uploadCourseAsset, getSignedVideoUrl, getVideoStatusLabel, getVideoStatusColor, formatDuration, formatFileSize } from '../lib/courseHelpers';
 import type { Course, CourseCategory, CourseStatus, CourseAccess } from '../types';
 
 interface CoursesManagerProps {
@@ -933,19 +933,465 @@ function CourseSectionsManager({ course, onBack }: any) {
     );
 }
 
-/* ---------- CourseVideosManager (placeholder) ---------- */
+/* ---------- CourseVideosManager (completo) ---------- */
 
 function CourseVideosManager({ course, onBack }: any) {
+    const [lessons, setLessons] = useState<any[]>([]);
+    const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+    const [videos, setVideos] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [showVideoForm, setShowVideoForm] = useState(false);
+    const [editingVideo, setEditingVideo] = useState<any>(null);
+    const [videoForm, setVideoForm] = useState({
+        title: '',
+        description: '',
+        thumbnail_file: null as File | null,
+        thumbnail_url: '',
+    });
+    const [resourceForm, setResourceForm] = useState({
+        title: '',
+        type: 'pdf' as 'pdf' | 'link' | 'image' | 'file',
+        file: null as File | null,
+        url: '',
+    });
+    const [resources, setResources] = useState<any[]>([]);
+    const [showResourceForm, setShowResourceForm] = useState(false);
+    const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadLessons();
+    }, [course]);
+
+    const loadLessons = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('course_lessons')
+                .select('id, title, sort_order, section_id, section:course_sections(id, title)')
+                .eq('section_id', supabase.from('course_sections').select('id').eq('course_id', course.id))
+                .order('sort_order');
+            // La query anidada no funciona así, hacemos dos queries
+            const { data: sections } = await supabase
+                .from('course_sections')
+                .select('id, title')
+                .eq('course_id', course.id);
+            const sectionIds = sections?.map(s => s.id) || [];
+            if (sectionIds.length === 0) { setLessons([]); setLoading(false); return; }
+            const { data: lessonsData, error: lessonsError } = await supabase
+                .from('course_lessons')
+                .select('*')
+                .in('section_id', sectionIds)
+                .order('sort_order');
+            if (lessonsError) throw lessonsError;
+            // Agrupar por sección
+            const lessonsWithSection = (lessonsData || []).map(l => ({
+                ...l,
+                section: sections?.find(s => s.id === l.section_id)
+            }));
+            setLessons(lessonsWithSection);
+        } catch (err) {
+            console.error('Error cargando lecciones:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadVideos = async (lessonId: string) => {
+        setSelectedLessonId(lessonId);
+        setShowVideoForm(false);
+        setEditingVideo(null);
+        try {
+            const { data, error } = await supabase
+                .from('course_videos')
+                .select('*')
+                .eq('lesson_id', lessonId)
+                .order('sort_order');
+            if (error) throw error;
+            setVideos(data || []);
+            // Cargar recursos
+            const { data: resData } = await supabase
+                .from('course_resources')
+                .select('*')
+                .eq('lesson_id', lessonId)
+                .order('sort_order');
+            setResources(resData || []);
+        } catch (err) {
+            console.error('Error cargando videos:', err);
+        }
+    };
+
+    const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        // Validación
+        const validTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+        if (!validTypes.includes(file.type)) {
+            alert('Formato no válido. Use MP4, WebM o MOV.');
+            return;
+        }
+        const maxSize = 5 * 1024 * 1024 * 1024; // 5GB
+        if (file.size > maxSize) {
+            alert('El archivo excede 5GB.');
+            return;
+        }
+        setVideoForm(prev => ({ ...prev, thumbnail_file: file }));
+    };
+
+    const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) { alert('Solo imágenes'); return; }
+        setVideoForm(prev => ({ ...prev, thumbnail_file: file }));
+    };
+
+    const saveVideo = async () => {
+        if (!videoForm.thumbnail_file) { alert('Seleccione un archivo de video'); return; }
+        if (!videoForm.title.trim()) { alert('El título es obligatorio'); return; }
+        if (!selectedLessonId) return;
+
+        setUploading(true);
+        try {
+            // Subir video
+            const { path, error: uploadError } = await uploadCourseVideo(videoForm.thumbnail_file, selectedLessonId);
+            if (uploadError) throw new Error(uploadError);
+
+            // Subir miniatura si hay
+            let thumbnailUrl = '';
+            if (videoForm.thumbnail_file && videoForm.thumbnail_file.type.startsWith('image/')) {
+                const { url, error: thumbError } = await uploadCourseAsset(videoForm.thumbnail_file, `thumbnails/${selectedLessonId}`);
+                if (thumbError) console.warn('Error subiendo miniatura:', thumbError);
+                else thumbnailUrl = url;
+            }
+
+            // Crear registro en BD
+            const lessonVideos = videos.length;
+            const { error } = await supabase.from('course_videos').insert({
+                id: crypto.randomUUID(),
+                lesson_id: selectedLessonId,
+                title: videoForm.title,
+                description: videoForm.description,
+                storage_path: path,
+                thumbnail_url: thumbnailUrl || videoForm.thumbnail_url,
+                sort_order: lessonVideos,
+                status: 'listo',
+            });
+            if (error) throw error;
+
+            setVideoForm({ title: '', description: '', thumbnail_file: null, thumbnail_url: '' });
+            setShowVideoForm(false);
+            loadVideos(selectedLessonId);
+        } catch (err: any) {
+            console.error('Error guardando video:', err);
+            alert('Error al guardar video: ' + err.message);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const deleteVideo = async (videoId: string) => {
+        if (!confirm('¿Eliminar este video permanentemente?')) return;
+        try {
+            const video = videos.find(v => v.id === videoId);
+            if (video?.storage_path) {
+                await supabase.storage.from('course-videos').remove([video.storage_path]);
+            }
+            const { error } = await supabase.from('course_videos').delete().eq('id', videoId);
+            if (error) throw error;
+            loadVideos(selectedLessonId!);
+        } catch (err) {
+            console.error('Error eliminando video:', err);
+            alert('Error al eliminar video');
+        }
+    };
+
+    const toggleVideoStatus = async (videoId: string, newStatus: string) => {
+        try {
+            const { error } = await supabase.from('course_videos').update({ status: newStatus }).eq('id', videoId);
+            if (error) throw error;
+            loadVideos(selectedLessonId!);
+        } catch (err) {
+            console.error('Error cambiando estado:', err);
+        }
+    };
+
+    const saveResource = async () => {
+        if (!resourceForm.title.trim()) { alert('Título obligatorio'); return; }
+        if (resourceForm.type !== 'link' && !resourceForm.file) { alert('Seleccione archivo'); return; }
+        if (resourceForm.type === 'link' && !resourceForm.url) { alert('URL obligatoria'); return; }
+        if (!selectedLessonId) return;
+
+        setLoading(true);
+        try {
+            let url = resourceForm.url;
+            if (resourceForm.file) {
+                const { url: uploadedUrl, error } = await uploadCourseAsset(resourceForm.file, `resources/${selectedLessonId}`);
+                if (error) throw new Error(error);
+                url = uploadedUrl;
+            }
+            const resCount = resources.length;
+            const { error } = await supabase.from('course_resources').insert({
+                id: crypto.randomUUID(),
+                lesson_id: selectedLessonId,
+                title: resourceForm.title,
+                type: resourceForm.type,
+                url,
+                file_size_bytes: resourceForm.file?.size,
+                mime_type: resourceForm.file?.type,
+                sort_order: resCount,
+            });
+            if (error) throw error;
+            setResourceForm({ title: '', type: 'pdf', file: null, url: '' });
+            setShowResourceForm(false);
+            loadVideos(selectedLessonId);
+        } catch (err: any) {
+            console.error('Error guardando recurso:', err);
+            alert('Error: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteResource = async (resourceId: string) => {
+        try {
+            const { error } = await supabase.from('course_resources').delete().eq('id', resourceId);
+            if (error) throw error;
+            loadVideos(selectedLessonId!);
+        } catch (err) {
+            console.error('Error eliminando recurso:', err);
+        }
+    };
+
+    const openPreview = async (storagePath: string) => {
+        const { url, error } = await getSignedVideoUrl(storagePath);
+        if (error) { alert('Error generando preview'); return; }
+        setPreviewVideo(url);
+    };
+
+    const closePreview = () => setPreviewVideo(null);
+
+    if (loading) return <div className="max-w-4xl mx-auto text-center py-12">Cargando...</div>;
+
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Videos de: {course.title}</h2>
+                <h2 className="text-xl font-semibold">Videos y Recursos: {course.title}</h2>
                 <button onClick={onBack} className="text-zinc-500 hover:text-zinc-700">← Volver</button>
             </div>
-            <div className="bg-white border border-zinc-200 rounded-xl p-8 text-center text-zinc-500">
-                <Video className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
-                <p>Gestión de videos: subida, miniaturas, recursos (próximamente)</p>
+
+            {/* Selector de lección */}
+            <div className="mb-6 bg-white border border-zinc-200 rounded-xl p-4">
+                <label className="block text-sm font-medium mb-2">Seleccionar lección</label>
+                <select
+                    value={selectedLessonId || ''}
+                    onChange={e => loadVideos(e.target.value)}
+                    className="w-full max-w-md px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                >
+                    <option value="">-- Elija una lección --</option>
+                    {lessons.map(l => (
+                        <option key={l.id} value={l.id}>{l.section?.title} - {l.title}</option>
+                    ))}
+                </select>
             </div>
+
+            {selectedLessonId && (
+                <>
+                    {/* Header con botones */}
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-medium">
+                            Lección: {lessons.find(l => l.id === selectedLessonId)?.title}
+                        </h3>
+                        <div className="flex gap-2">
+                            <button onClick={() => { setEditingVideo(null); setVideoForm({ title: '', description: '', thumbnail_file: null, thumbnail_url: '' }); setShowVideoForm(true); }} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-lg flex items-center gap-2">
+                                <Plus className="w-4 h-4" /> Subir Video
+                            </button>
+                            <button onClick={() => setShowResourceForm(true)} className="px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg flex items-center gap-2 hover:bg-zinc-50">
+                                <FileText className="w-4 h-4" /> Agregar Recurso
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Formulario subir video */}
+                    {showVideoForm && (
+                        <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
+                            <h3 className="font-semibold mb-4">{editingVideo ? 'Editar Video' : 'Subir Nuevo Video'}</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Archivo de Video *</label>
+                                    <input
+                                        type="file"
+                                        accept="video/mp4,video/webm,video/quicktime"
+                                        onChange={handleVideoFileChange}
+                                        className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                    />
+                                    <p className="text-xs text-zinc-500 mt-1">MP4, WebM, MOV · Máx. 5GB</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Título *</label>
+                                    <input
+                                        value={videoForm.title}
+                                        onChange={e => setVideoForm({ ...videoForm, title: e.target.value })}
+                                        className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                        placeholder="Ej: Introducción al corte clásico"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Descripción</label>
+                                    <textarea
+                                        value={videoForm.description}
+                                        onChange={e => setVideoForm({ ...videoForm, description: e.target.value })}
+                                        rows={3}
+                                        className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Miniatura personalizada</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleThumbnailChange}
+                                        className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                    />
+                                    <p className="text-xs text-zinc-500 mt-1">Opcional. Si no se sube, se generará automáticamente.</p>
+                                </div>
+                                <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
+                                    <button onClick={() => { setShowVideoForm(false); setEditingVideo(null); setVideoForm({ title: '', description: '', thumbnail_file: null, thumbnail_url: '' }); }} className="px-4 py-2 border border-zinc-300 rounded-lg">Cancelar</button>
+                                    <button onClick={saveVideo} disabled={uploading} className="px-4 py-2 bg-amber-500 text-white rounded-lg disabled:opacity-50">{uploading ? 'Subiendo...' : 'Guardar'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Formulario recurso */}
+                    {showResourceForm && (
+                        <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
+                            <h3 className="font-semibold mb-4">Agregar Recurso Complementario</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Título *</label>
+                                    <input
+                                        value={resourceForm.title}
+                                        onChange={e => setResourceForm({ ...resourceForm, title: e.target.value })}
+                                        className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Tipo *</label>
+                                    <select
+                                        value={resourceForm.type}
+                                        onChange={e => setResourceForm({ ...resourceForm, type: e.target.value as any })}
+                                        className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                    >
+                                        <option value="pdf">PDF</option>
+                                        <option value="link">Enlace externo</option>
+                                        <option value="image">Imagen</option>
+                                        <option value="file">Archivo genérico</option>
+                                    </select>
+                                </div>
+                                {resourceForm.type === 'link' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">URL *</label>
+                                        <input
+                                            value={resourceForm.url}
+                                            onChange={e => setResourceForm({ ...resourceForm, url: e.target.value })}
+                                            className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Archivo *</label>
+                                        <input
+                                            type="file"
+                                            onChange={e => setResourceForm({ ...resourceForm, file: e.target.files?.[0] || null })}
+                                            className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:border-amber-500 focus:outline-none"
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
+                                    <button onClick={() => { setShowResourceForm(false); setResourceForm({ title: '', type: 'pdf', file: null, url: '' }); }} className="px-4 py-2 border border-zinc-300 rounded-lg">Cancelar</button>
+                                    <button onClick={saveResource} disabled={loading} className="px-4 py-2 bg-amber-500 text-white rounded-lg disabled:opacity-50">{loading ? 'Guardando...' : 'Guardar'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Lista de videos */}
+                    <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+                        {videos.length === 0 ? (
+                            <div className="p-12 text-center text-zinc-500">
+                                <Video className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
+                                <p>No hay videos en esta lección</p>
+                                <button onClick={() => { setEditingVideo(null); setVideoForm({ title: '', description: '', thumbnail_file: null, thumbnail_url: '' }); setShowVideoForm(true); }} className="mt-4 px-4 py-2 bg-amber-500 text-white rounded-lg">Subir primer video</button>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-zinc-200">
+                                {videos.map((video, idx) => (
+                                    <div key={video.id} className="p-4 flex items-center gap-4 hover:bg-zinc-50">
+                                        {/* Miniatura */}
+                                        <div className="relative w-32 h-18 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-100">
+                                            {video.thumbnail_url ? (
+                                                <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                                                    <Video className="w-8 h-8" />
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                                <button onClick={() => openPreview(video.storage_path)} className="px-3 py-1.5 bg-white text-zinc-900 text-sm rounded hover:bg-zinc-100">Preview</button>
+                                            </div>
+                                        </div>
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-medium text-zinc-900 truncate">{video.title}</h4>
+                                                <span className={`px-2 py-0.5 text-xs rounded ${getVideoStatusColor(video.status)}`}>{getVideoStatusLabel(video.status)}</span>
+                                            </div>
+                                            <p className="text-sm text-zinc-500 truncate">{video.description || 'Sin descripción'}</p>
+                                            <div className="flex items-center gap-4 mt-1 text-xs text-zinc-400">
+                                                {video.duration_seconds && <span>⏱ {formatDuration(video.duration_seconds)}</span>}
+                                                {video.file_size_bytes && <span>📦 {formatFileSize(video.file_size_bytes)}</span>}
+                                                <span>Orden: {video.sort_order + 1}</span>
+                                            </div>
+                                        </div>
+                                        {/* Acciones */}
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <button onClick={() => toggleVideoStatus(video.id, video.status === 'publicado' ? 'listo' : 'publicado')} className="p-1.5 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded" title={video.status === 'publicado' ? 'Ocultar' : 'Publicar'}>
+                                                {video.status === 'publicado' ? '👁️' : '✅'}
+                                            </button>
+                                            <button onClick={() => openPreview(video.storage_path)} className="p-1.5 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded" title="Preview">▶️</button>
+                                            <button onClick={() => deleteVideo(video.id)} className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="Eliminar">🗑️</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Recursos */}
+                        {resources.length > 0 && (
+                            <div className="border-t border-zinc-200 p-4">
+                                <h4 className="font-medium text-zinc-900 mb-3 flex items-center gap-2">
+                                    <FileText className="w-5 h-5" /> Recursos complementarios ({resources.length})
+                                </h4>
+                                <div className="space-y-2">
+                                    {resources.map(res => (
+                                        <div key={res.id} className="flex items-center justify-between p-3 border border-zinc-200 rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <span className="px-2 py-1 text-xs bg-zinc-100 text-zinc-700 rounded">{res.type.toUpperCase()}</span>
+                                                <div>
+                                                    <p className="font-medium text-zinc-900">{res.title}</p>
+                                                    <p className="text-xs text-zinc-500 truncate max-w-xs">{res.url}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => deleteResource(res.id)} className="text-red-500 hover:text-red-700 text-sm">Eliminar</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
