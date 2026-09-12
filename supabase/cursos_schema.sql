@@ -417,24 +417,14 @@ create policy "student_progress_student_own" on public.student_progress
 -- POLÍTICAS: admins
 -- =============================================
 
+-- NOTA: estas policies NO deben consultar a public.admins (recursión infinita → HTTP 500).
+-- La gestión de filas de admins se hace con service_role (backend / SQL Editor).
 drop policy if exists "admins_select_owner" on public.admins;
-create policy "admins_select_owner" on public.admins
-    for select using (
-        exists (select 1 from public.admins where id = auth.uid() and role = 'owner' and active = true)
-        or auth.uid() = id
-    );
-
 drop policy if exists "admins_insert_owner" on public.admins;
-create policy "admins_insert_owner" on public.admins
-    for insert with check (
-        exists (select 1 from public.admins where id = auth.uid() and role = 'owner' and active = true)
-    );
-
 drop policy if exists "admins_update_owner" on public.admins;
-create policy "admins_update_owner" on public.admins
-    for update using (
-        exists (select 1 from public.admins where id = auth.uid() and role = 'owner' and active = true)
-    );
+drop policy if exists "admins_select_own" on public.admins;
+create policy "admins_select_own" on public.admins
+    for select using (auth.uid() = id);
 
 -- =============================================
 -- BUCKETS DE STORAGE
