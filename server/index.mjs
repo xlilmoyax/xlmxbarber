@@ -18,8 +18,11 @@
  *   GITHUB_WORKFLOW (default: deploy.yml), PORT (default: 8787)
  *   CORS_ORIGINS (comma-separated, default: http://localhost:3000,https://xlmxbarber.com)
  */
+import dotenv from 'dotenv';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+
+dotenv.config({ path: 'server/.env' });
 
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
@@ -156,4 +159,6 @@ app.post('/api/github/publish', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`XLMX admin backend escuchando en :${PORT} (repo ${REPO}, rama ${BRANCH})`);
+  console.log(`  - service_role: ${SERVICE_ROLE_KEY ? 'configurada' : 'FALTA en server/.env'}`);
+  console.log(`  - github token: ${GITHUB_TOKEN ? 'configurado' : 'FALTA en server/.env'}`);
 });
