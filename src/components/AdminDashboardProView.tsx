@@ -10,9 +10,7 @@ import { BarChart3, BookOpen, ChevronDown, ExternalLink, FolderTree, Image, Layo
 type Area = 'products' | 'pages' | 'courses' | 'users' | 'testimonials' | 'settings';
 type ProductSection = 'Listado' | 'Subir producto' | 'Categorías' | 'Pedidos' | 'Portada / Hero' | 'Métricas';
 type Product = { id: string; name: string; price: number; stock: number; description: string; featured: boolean; image_url?: string; materials?: string; brand?: string; discount_enabled?: boolean; discount_type?: 'percentage' | 'fixed'; discount_value?: number; status?: 'draft' | 'published' | 'sold_out' | 'archived'; category_id?: string; created_at?: string; highlights?: string; original_price?: number; image_urls?: string[]; is_new?: boolean; free_shipping?: boolean; };
-type Course = { id: string; title: string; description: string; published: boolean };
 type Testimonial = { id: string; author: string; quote: string; rating: number; published: boolean };
-type CourseMetrics = { courses: number; sections: number; lessons: number; videos: number; accesses: number };
 type Props = { users: RegisteredUser[]; onLogout: () => void; onNavigate: (screen: Screen) => void; onDeleteUser: (id: string) => void; onUpdateUser: (user: RegisteredUser) => Promise<void> | void; onSyncDatabase: () => void; isSyncing: boolean };
 
 const areas: { id: Area; label: string; icon: React.ElementType }[] = [
@@ -50,8 +48,6 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [courseMetrics, setCourseMetrics] = useState<CourseMetrics>({ courses: 0, sections: 0, lessons: 0, videos: 0, accesses: 0 });
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [heroConfig, setHeroConfig] = useState<HeroConfig | null>(null);
   const [productForm, setProductForm] = useState(false);
@@ -69,15 +65,11 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
 
   const loadData = useCallback(async () => {
     if (!isSupabaseConfigured) { setNotice('Supabase no está configurado.'); return; }
-    const [productsResult, categoriesResult, coursesResult, ordersResult, testimonialsResult, sectionsResult, lessonsResult, accessResult, heroResult] = await Promise.all([
+    const [productsResult, categoriesResult, ordersResult, testimonialsResult, heroResult] = await Promise.all([
       supabase.from('products').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('sort_order', { ascending: true }),
-      supabase.from('courses').select('id,title,description,published').order('created_at', { ascending: false }),
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       supabase.from('testimonials').select('*').order('created_at', { ascending: false }),
-      supabase.from('course_sections').select('id'),
-      supabase.from('course_lessons').select('id,video_url'),
-      supabase.from('course_access').select('course_id'),
       supabase.from('hero_config').select('*').eq('active', true).maybeSingle(),
     ]);
     if (!productsResult.error) setProducts((productsResult.data || []) as Product[]);
@@ -89,20 +81,12 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
       }, {});
       setCategories(cats.map(c => ({ ...c, product_count: productCounts[c.id] || 0 })));
     }
-    if (!coursesResult.error) setCourses((coursesResult.data || []) as Course[]);
     if (!ordersResult.error) setOrders((ordersResult.data || []) as Order[]);
     if (!testimonialsResult.error) setTestimonials((testimonialsResult.data || []) as Testimonial[]);
     if (!heroResult.error && heroResult.data) {
       setHeroConfig(heroResult.data as HeroConfig);
       setHeroForm({ title: heroResult.data.title || '', subtitle: heroResult.data.subtitle || '', description: heroResult.data.description || '', main_image_url: heroResult.data.main_image_url || '', cta_label: heroResult.data.cta_label || 'Ver catálogo', featured_product_ids: heroResult.data.featured_product_ids || [] });
     }
-    setCourseMetrics({
-      courses: coursesResult.data?.length || 0,
-      sections: sectionsResult.data?.length || 0,
-      lessons: lessonsResult.data?.length || 0,
-      videos: lessonsResult.data?.filter((l: any) => Boolean(l.video_url)).length || 0,
-      accesses: accessResult.data?.length || 0,
-    });
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -162,9 +146,9 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
     setNotice('Portada/Hero guardada.'); await loadData();
   };
 
-  const exportBackup = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, exported_at: new Date().toISOString(), products, courses, orders, testimonials, users }, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = `xlmx-backup-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); setNotice('Copia JSON descargada.'); };
-  const restoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file || !isSupabaseConfigured) return; if (!confirm('La restauración puede sobrescribir datos. ¿Deseas continuar?')) return; try { const backup = JSON.parse(await file.text()); for (const table of ['products', 'courses', 'testimonials']) { const rows = backup[table]; if (Array.isArray(rows) && rows.length) { const result = await supabase.from(table).upsert(rows); if (result.error) throw result.error; } } setNotice('Respaldo restaurado.'); await loadData(); } catch (error) { setNotice(`No se pudo restaurar: ${error instanceof Error ? error.message : 'JSON inválido'}`); } event.target.value = ''; };
-  const resetInitial = async () => { if (!confirm('Esta acción eliminará productos, cursos y testimonios. Escribe ACEPTAR en la siguiente ventana para confirmar.')) return; if (window.prompt('Confirmación') !== 'ACEPTAR') return; for (const table of ['products', 'courses', 'testimonials']) await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000'); setNotice('Contenido restablecido.'); await loadData(); };
+  const exportBackup = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, exported_at: new Date().toISOString(), products, orders, testimonials, users }, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = `xlmx-backup-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); setNotice('Copia JSON descargada.'); };
+  const restoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file || !isSupabaseConfigured) return; if (!confirm('La restauración puede sobrescribir datos. ¿Deseas continuar?')) return; try { const backup = JSON.parse(await file.text()); for (const table of ['products', 'testimonials']) { const rows = backup[table]; if (Array.isArray(rows) && rows.length) { const result = await supabase.from(table).upsert(rows); if (result.error) throw result.error; } } setNotice('Respaldo restaurado.'); await loadData(); } catch (error) { setNotice(`No se pudo restaurar: ${error instanceof Error ? error.message : 'JSON inválido'}`); } event.target.value = ''; };
+  const resetInitial = async () => { if (!confirm('Esta acción eliminará productos y testimonios. Escribe ACEPTAR en la siguiente ventana para confirmar.')) return; if (window.prompt('Confirmación') !== 'ACEPTAR') return; for (const table of ['products', 'testimonials']) await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000'); setNotice('Contenido restablecido.'); await loadData(); };
 
   const filteredProducts = products.filter((product) => `${product.name} ${product.description}`.toLowerCase().includes(query.toLowerCase()));
 
