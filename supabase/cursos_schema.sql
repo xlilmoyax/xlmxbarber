@@ -548,19 +548,24 @@ returns table (
     last_lesson_id uuid
 ) language sql stable as $$
     select
-        count(l.id) as total_lessons,
-        count(sp.id) filter (where sp.completed) as completed_lessons,
+        count(l.id)::int as total_lessons,
+        count(sp.id) filter (where sp.completed)::int as completed_lessons,
         case when count(l.id) > 0
             then round(100.0 * count(sp.id) filter (where sp.completed) / count(l.id), 2)
             else 0 end as progress_percent,
-        coalesce(sum(sp.watched_seconds), 0) as total_watched_seconds,
-        coalesce(sum(sp.total_seconds), 0) as total_duration_seconds,
+        coalesce(sum(sp.watched_seconds), 0)::bigint as total_watched_seconds,
+        coalesce(sum(sp.total_seconds), 0)::bigint as total_duration_seconds,
         max(sp.last_accessed_at) as last_accessed_at,
-        max(sp.lesson_id) filter (where sp.last_accessed_at = max(sp.last_accessed_at)) as last_lesson_id
+        (select sp2.lesson_id
+           from public.student_progress sp2
+          where sp2.course_id = p_course_id
+            and sp2.user_id = p_user_id
+          order by sp2.last_accessed_at desc nulls last
+          limit 1) as last_lesson_id
     from public.course_lessons l
     join public.course_sections cs on cs.id = l.section_id
-    where cs.course_id = p_course_id
-    left join public.student_progress sp on sp.lesson_id = l.id and sp.user_id = p_user_id;
+    left join public.student_progress sp on sp.lesson_id = l.id and sp.user_id = p_user_id
+    where cs.course_id = p_course_id;
 $$;
 
 -- =============================================
