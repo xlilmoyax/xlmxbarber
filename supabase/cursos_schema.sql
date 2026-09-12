@@ -69,9 +69,12 @@ create table if not exists public.course_sections (
     title text not null,
     description text,
     sort_order int not null default 0,
+    status text not null default 'borrador' check (status in ('borrador','publicado','oculto')),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+-- Por si la tabla ya existía sin la columna (migración desde esquema viejo)
+alter table public.course_sections add column if not exists status text not null default 'borrador';
 
 -- Lecciones
 create table if not exists public.course_lessons (
@@ -236,9 +239,11 @@ alter table public.admins enable row level security;
 -- POLÍTICAS: course_categories (lectura pública, escritura admin)
 -- =============================================
 
+drop policy if exists "course_categories_select_public" on public.course_categories;
 create policy "course_categories_select_public" on public.course_categories
     for select using (active = true);
 
+drop policy if exists "course_categories_admin_all" on public.course_categories;
 create policy "course_categories_admin_all" on public.course_categories
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
@@ -248,6 +253,7 @@ create policy "course_categories_admin_all" on public.course_categories
 -- POLÍTICAS: course_types (solo lectura pública)
 -- =============================================
 
+drop policy if exists "course_types_select_public" on public.course_types;
 create policy "course_types_select_public" on public.course_types
     for select using (true);
 
@@ -256,25 +262,30 @@ create policy "course_types_select_public" on public.course_types
 -- =============================================
 
 -- Lectura: cursos publicados (público) + todos los cursos para admins
+drop policy if exists "courses_select_published" on public.courses;
 create policy "courses_select_published" on public.courses
     for select using (status = 'publicado');
 
+drop policy if exists "courses_select_admin" on public.courses;
 create policy "courses_select_admin" on public.courses
     for select using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
 -- Escritura: solo admins
+drop policy if exists "courses_insert_admin" on public.courses;
 create policy "courses_insert_admin" on public.courses
     for insert with check (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
+drop policy if exists "courses_update_admin" on public.courses;
 create policy "courses_update_admin" on public.courses
     for update using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
+drop policy if exists "courses_delete_admin" on public.courses;
 create policy "courses_delete_admin" on public.courses
     for delete using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
@@ -284,11 +295,13 @@ create policy "courses_delete_admin" on public.courses
 -- POLÍTICAS: course_sections
 -- =============================================
 
+drop policy if exists "course_sections_select_published" on public.course_sections;
 create policy "course_sections_select_published" on public.course_sections
     for select using (
         exists (select 1 from public.courses c where c.id = course_id and c.status = 'publicado')
     );
 
+drop policy if exists "course_sections_admin_all" on public.course_sections;
 create policy "course_sections_admin_all" on public.course_sections
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
@@ -298,6 +311,7 @@ create policy "course_sections_admin_all" on public.course_sections
 -- POLÍTICAS: course_lessons
 -- =============================================
 
+drop policy if exists "course_lessons_select_published" on public.course_lessons;
 create policy "course_lessons_select_published" on public.course_lessons
     for select using (
         exists (
@@ -307,6 +321,7 @@ create policy "course_lessons_select_published" on public.course_lessons
         )
     );
 
+drop policy if exists "course_lessons_admin_all" on public.course_lessons;
 create policy "course_lessons_admin_all" on public.course_lessons
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
@@ -317,12 +332,14 @@ create policy "course_lessons_admin_all" on public.course_lessons
 -- =============================================
 
 -- Los videos son privados: solo admins y estudiantes con acceso
+drop policy if exists "course_videos_admin_all" on public.course_videos;
 create policy "course_videos_admin_all" on public.course_videos
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
 -- Estudiantes: solo videos de lecciones a las que tienen acceso
+drop policy if exists "course_videos_student_access" on public.course_videos;
 create policy "course_videos_student_access" on public.course_videos
     for select using (
         exists (
@@ -342,11 +359,13 @@ create policy "course_videos_student_access" on public.course_videos
 -- POLÍTICAS: course_resources
 -- =============================================
 
+drop policy if exists "course_resources_admin_all" on public.course_resources;
 create policy "course_resources_admin_all" on public.course_resources
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
+drop policy if exists "course_resources_student_access" on public.course_resources;
 create policy "course_resources_student_access" on public.course_resources
     for select using (
         exists (
@@ -366,12 +385,14 @@ create policy "course_resources_student_access" on public.course_resources
 -- POLÍTICAS: course_accesses
 -- =============================================
 
+drop policy if exists "course_accesses_admin_all" on public.course_accesses;
 create policy "course_accesses_admin_all" on public.course_accesses
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
 -- Estudiantes: solo ver sus propios accesos
+drop policy if exists "course_accesses_student_own" on public.course_accesses;
 create policy "course_accesses_student_own" on public.course_accesses
     for select using (user_id = auth.uid());
 
@@ -379,11 +400,13 @@ create policy "course_accesses_student_own" on public.course_accesses
 -- POLÍTICAS: student_progress
 -- =============================================
 
+drop policy if exists "student_progress_admin_all" on public.student_progress;
 create policy "student_progress_admin_all" on public.student_progress
     for all using (
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
+drop policy if exists "student_progress_student_own" on public.student_progress;
 create policy "student_progress_student_own" on public.student_progress
     for all using (user_id = auth.uid());
 
@@ -391,17 +414,20 @@ create policy "student_progress_student_own" on public.student_progress
 -- POLÍTICAS: admins
 -- =============================================
 
+drop policy if exists "admins_select_owner" on public.admins;
 create policy "admins_select_owner" on public.admins
     for select using (
         exists (select 1 from public.admins where id = auth.uid() and role = 'owner' and active = true)
         or auth.uid() = id
     );
 
+drop policy if exists "admins_insert_owner" on public.admins;
 create policy "admins_insert_owner" on public.admins
     for insert with check (
         exists (select 1 from public.admins where id = auth.uid() and role = 'owner' and active = true)
     );
 
+drop policy if exists "admins_update_owner" on public.admins;
 create policy "admins_update_owner" on public.admins
     for update using (
         exists (select 1 from public.admins where id = auth.uid() and role = 'owner' and active = true)
@@ -422,12 +448,14 @@ values ('course-assets', 'course-assets', true, 52428800, array['image/*','appli
 on conflict (id) do nothing;
 
 -- Políticas storage course-videos (solo admins y estudiantes con acceso via signed URLs)
+drop policy if exists "course_videos_storage_admin" on storage.objects;
 create policy "course_videos_storage_admin" on storage.objects
     for all using (
         bucket_id = 'course-videos' and
         exists (select 1 from public.admins where id = auth.uid() and active = true)
     );
 
+drop policy if exists "course_videos_storage_student" on storage.objects;
 create policy "course_videos_storage_student" on storage.objects
     for select using (
         bucket_id = 'course-videos' and
@@ -446,9 +474,11 @@ create policy "course_videos_storage_student" on storage.objects
     );
 
 -- Políticas storage course-assets (público para leer, admin para escribir)
+drop policy if exists "course_assets_storage_public" on storage.objects;
 create policy "course_assets_storage_public" on storage.objects
     for select using (bucket_id = 'course-assets');
 
+drop policy if exists "course_assets_storage_admin" on storage.objects;
 create policy "course_assets_storage_admin" on storage.objects
     for all using (
         bucket_id = 'course-assets' and
@@ -459,12 +489,19 @@ create policy "course_assets_storage_admin" on storage.objects
 -- REALTIME
 -- =============================================
 
-alter publication supabase_realtime add table public.courses;
-alter publication supabase_realtime add table public.course_sections;
-alter publication supabase_realtime add table public.course_lessons;
-alter publication supabase_realtime add table public.course_videos;
-alter publication supabase_realtime add table public.course_accesses;
-alter publication supabase_realtime add table public.student_progress;
+-- Realtime (solo agrega las que falten, para poder re-ejecutar el script)
+do $$
+declare t text;
+begin
+  foreach t in array array['courses','course_sections','course_lessons','course_videos','course_accesses','student_progress'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- =============================================
 -- FUNCIONES AUXILIARES
