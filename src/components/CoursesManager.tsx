@@ -97,13 +97,19 @@ export default function CoursesManager({ onNavigate }: CoursesManagerProps) {
     const handleDuplicateCourse = async () => {
         if (!selectedCourse) return;
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('No hay sesión de administrador activa.');
+            const { id, category, sections, created_at, updated_at, published_at, ...rest } = selectedCourse as any;
+            void id; void category; void sections; void created_at; void updated_at; void published_at;
             const { data, error } = await supabase
                 .from('courses')
                 .insert({
-                    ...selectedCourse,
+                    ...rest,
+                    id: crypto.randomUUID(),
                     title: `${selectedCourse.title} (Copia)`,
                     slug: `${selectedCourse.slug}-copia-${Date.now()}`,
                     status: 'borrador',
+                    created_by: user.id,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                     published_at: null,
@@ -116,7 +122,7 @@ export default function CoursesManager({ onNavigate }: CoursesManagerProps) {
             setActiveTab('edit');
         } catch (err) {
             console.error('Error duplicando curso:', err);
-            alert('Error al duplicar el curso');
+            alert('Error al duplicar el curso: ' + (err instanceof Error ? err.message : String(err)));
         }
     };
 
@@ -462,6 +468,8 @@ function CourseForm({ course, onBack, onSaved, categories, courseTypes }: any) {
         if (!validate()) return;
         setSaving(true);
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('No hay sesión de administrador activa.');
             const payload = { ...form, updated_at: new Date().toISOString() };
             if (course) {
                 const { error } = await supabase.from('courses').update(payload).eq('id', course.id);
@@ -470,6 +478,7 @@ function CourseForm({ course, onBack, onSaved, categories, courseTypes }: any) {
                 const { error } = await supabase.from('courses').insert({
                     ...payload,
                     id: crypto.randomUUID(),
+                    created_by: user.id,
                     created_at: new Date().toISOString(),
                 });
                 if (error) throw error;
@@ -478,7 +487,7 @@ function CourseForm({ course, onBack, onSaved, categories, courseTypes }: any) {
             onBack();
         } catch (err) {
             console.error('Error guardando curso:', err);
-            alert('Error al guardar el curso');
+            alert('Error al guardar el curso: ' + (err instanceof Error ? err.message : String(err)));
         } finally {
             setSaving(false);
         }
