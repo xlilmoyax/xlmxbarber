@@ -5,7 +5,7 @@ import ProductEditor from './ProductEditor';
 import PagesManager from './PageEditor';
 import CoursesManager from './CoursesManager';
 import { getDiscountInfo } from '../lib/productHelpers';
-import { AlertTriangle, BarChart3, Bell, BookOpen, CheckCircle, ChevronDown, Clock, DollarSign, ExternalLink, FolderTree, Image, LayoutDashboard, LogOut, MessageSquareQuote, Package, Plus, RefreshCw, Search, Settings, ShoppingCart, SquarePen, Star, TrendingUp, Trash2, Users, Check, X, Save, ZapOff } from 'lucide-react';
+import { AlertTriangle, Award, BarChart3, Bell, BookOpen, Calendar, CheckCircle, ChevronDown, Clock, Crown, DollarSign, ExternalLink, Filter, FolderTree, Image, LayoutDashboard, LogOut, Mail, MessageSquareQuote, Package, Phone, Plus, RefreshCw, Search, Settings, ShieldCheck, ShoppingCart, SquarePen, Star, TrendingUp, Trash2, Users, Check, X, Save, ZapOff } from 'lucide-react';
 
 type Area = 'products' | 'pages' | 'courses' | 'users' | 'testimonials' | 'settings';
 type ProductSection = 'Listado' | 'Subir producto' | 'Categorías' | 'Pedidos' | 'Portada / Hero' | 'Métricas';
@@ -62,6 +62,18 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
 
   // Hero form state
   const [heroForm, setHeroForm] = useState({ title: '', subtitle: '', description: '', main_image_url: '', cta_label: 'Ver catálogo', featured_product_ids: [] as string[] });
+
+  // Users premium state
+  const [userQuery, setUserQuery] = useState('');
+  const [userMembershipFilter, setUserMembershipFilter] = useState<'todos' | RegisteredUser['membership']>('todos');
+  const [userSocioFilter, setUserSocioFilter] = useState<'todos' | 'socio' | 'no-socio'>('todos');
+  const [userSort, setUserSort] = useState<'recientes' | 'nombre' | 'edad'>('recientes');
+  const [userPage, setUserPage] = useState(1);
+  const [editingUser, setEditingUser] = useState<RegisteredUser | null>(null);
+  const [userForm, setUserForm] = useState<RegisteredUser | null>(null);
+  const [userFormErrors, setUserFormErrors] = useState<Record<string,string>>({});
+  const [userSaving, setUserSaving] = useState(false);
+  const [userDeleteTarget, setUserDeleteTarget] = useState<RegisteredUser | null>(null);
 
   const loadData = useCallback(async () => {
     if (!isSupabaseConfigured) { setNotice('Supabase no está configurado.'); return; }
@@ -144,6 +156,59 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
       if (data) setHeroConfig(data as HeroConfig);
     }
     setNotice('Portada/Hero guardada.'); await loadData();
+  };
+
+  // Users helpers
+  const membershipMeta: Record<RegisteredUser['membership'], { label: string; cls: string; icon: any }> = {
+    gold: { label: 'Gold', cls: 'bg-amber-100 text-amber-800 ring-amber-200', icon: Crown },
+    plata: { label: 'Plata', cls: 'bg-zinc-100 text-zinc-700 ring-zinc-200', icon: Award },
+    bronce: { label: 'Bronce', cls: 'bg-orange-100 text-orange-800 ring-orange-200', icon: Award },
+    ninguno: { label: 'Sin membresía', cls: 'bg-slate-100 text-slate-600 ring-slate-200', icon: ShieldCheck },
+  };
+  const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0,2).map(n=>n[0]?.toUpperCase()).join('') || 'U';
+  const filteredUsers = users.filter(u => {
+    const q = userQuery.trim().toLowerCase();
+    const matchesQuery = !q || `${u.fullname} ${u.email} ${u.phone}`.toLowerCase().includes(q);
+    const matchesMembership = userMembershipFilter==='todos' || u.membership===userMembershipFilter;
+    const matchesSocio = userSocioFilter==='todos' || (userSocioFilter==='socio' ? u.isSocio : !u.isSocio);
+    return matchesQuery && matchesMembership && matchesSocio;
+  }).sort((a,b)=>{
+    if(userSort==='nombre') return a.fullname.localeCompare(b.fullname);
+    if(userSort==='edad') return b.age - a.age;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+  const usersPerPage = 8;
+  const usersTotalPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
+  const usersPageSafe = Math.min(userPage, usersTotalPages);
+  const usersPaginated = filteredUsers.slice((usersPageSafe-1)*usersPerPage, usersPageSafe*usersPerPage);
+  const openEditUser = (u: RegisteredUser) => { setEditingUser(u); setUserForm({...u}); setUserFormErrors({}); };
+  const validateUserForm = () => {
+    if(!userForm) return false;
+    const e: Record<string,string> = {};
+    if(!userForm.fullname.trim()) e.fullname='El nombre es obligatorio';
+    else if(userForm.fullname.trim().length < 3) e.fullname='Mínimo 3 caracteres';
+    if(!userForm.email.trim()) e.email='El email es obligatorio';
+    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userForm.email)) e.email='Email inválido';
+    if(!userForm.phone.trim()) e.phone='El teléfono es obligatorio';
+    if(userForm.age < 0 || userForm.age > 120) e.age='Edad entre 0 y 120';
+    setUserFormErrors(e);
+    return Object.keys(e).length===0;
+  };
+  const saveUserEdit = async () => {
+    if(!userForm || !validateUserForm()) return;
+    setUserSaving(true);
+    try{
+      await onUpdateUser(userForm);
+      setNotice(`Usuario "${userForm.fullname}" actualizado.`);
+      setEditingUser(null); setUserForm(null);
+    } catch(err:any){ setNotice(err?.message || 'Error al guardar'); }
+    finally{ setUserSaving(false); }
+  };
+  const confirmDeleteUser = async () => {
+    if(!userDeleteTarget) return;
+    await onDeleteUser(userDeleteTarget.id);
+    setNotice(`Usuario "${userDeleteTarget.fullname}" eliminado.`);
+    setUserDeleteTarget(null);
   };
 
   const exportBackup = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, exported_at: new Date().toISOString(), products, orders, testimonials, users }, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = `xlmx-backup-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); setNotice('Copia JSON descargada.'); };
@@ -458,8 +523,226 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
         {/* ============ PAGES ============ */}
         {area === 'pages' && <PagesManager />}
 
-        {/* ============ USERS ============ */}
-        {area === 'users' && <section><div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">{[['Usuarios totales', users.length], ['Nuevos usuarios', 0], ['Usuarios activos', 0], ['Promedio de edad', users.length ? Math.round(users.reduce((sum, user) => sum + user.age, 0) / users.length) : 0]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-[#E8E3DA] bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wide text-[#667085]">{label}</p><p className="mt-2 font-display text-2xl">{value}</p></div>)}</div>{users.length === 0 ? <div className="rounded-2xl border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><Users className="h-6 w-6" /></div><h3 className="mt-4 font-display text-xl">Aún no hay usuarios registrados</h3><p className="mx-auto mt-2 max-w-md text-sm text-[#667085]">Los usuarios que se registren desde el sitio aparecerán aquí con sus datos y membresía.</p></div> : users.map((user) => <article key={user.id} className="mb-3 flex flex-col gap-3 rounded-2xl border border-[#E8E3DA] bg-white p-5 shadow-sm transition hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h3 className="font-display text-lg leading-none">{user.fullname}</h3><p className="mt-1 truncate text-sm text-[#667085]">{user.email} · {user.age} años · <span className="font-mono text-xs">{user.id.slice(0,8)}…</span></p></div><div className="flex shrink-0 gap-2"><button onClick={() => onUpdateUser(user)} className="rounded-full border border-[#E8E3DA] bg-white px-4 py-1.5 text-sm font-medium hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]">Guardar cambios</button><button onClick={() => onDeleteUser(user.id)} className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Eliminar</button></div></article>)}</section>}
+        {/* ============ USERS PREMIUM ============ */}
+        {area === 'users' && (
+          <section className="space-y-5">
+            {/* Métricas usuarios */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                { label: 'Usuarios totales', value: users.length, hint: `${users.filter(u=>u.isSocio).length} socios`, Icon: Users },
+                { label: 'Socios activos', value: users.filter(u=>u.isSocio).length, hint: `${users.length? Math.round(users.filter(u=>u.isSocio).length/users.length*100):0}% del total`, Icon: ShieldCheck },
+                { label: 'Gold / Plata / Bronce', value: `${users.filter(u=>u.membership==='gold').length} / ${users.filter(u=>u.membership==='plata').length} / ${users.filter(u=>u.membership==='bronce').length}`, hint: `${users.filter(u=>u.membership==='ninguno').length} sin membresía`, Icon: Crown },
+                { label: 'Edad promedio', value: users.length? Math.round(users.reduce((s,u)=>s+u.age,0)/users.length):0, hint: `Rango ${users.length? Math.min(...users.map(u=>u.age)):0}–${users.length? Math.max(...users.map(u=>u.age)):0} años`, Icon: Calendar },
+              ].map(({label,value,hint,Icon}:any)=>(
+                <div key={label} className="relative overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.04)]">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#FFF9E9]/50 via-transparent to-transparent" aria-hidden />
+                  <div className="relative flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#667085]">{label}</p>
+                      <p className="mt-2 truncate font-display text-2xl leading-none tracking-tight">{String(value)}</p>
+                      <p className="mt-1 truncate text-xs text-[#667085]">{hint}</p>
+                    </div>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#E8E3DA] bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><Icon className="h-4.5 w-4.5"/></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Toolbar: búsqueda + filtros + orden */}
+            <div className="rounded-2xl border border-[#E8E3DA] bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]" />
+                  <input value={userQuery} onChange={e=>{setUserQuery(e.target.value); setUserPage(1);}} placeholder="Buscar por nombre, email o teléfono" aria-label="Buscar usuarios" className="w-full rounded-full border border-[#E8E3DA] bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm placeholder:text-[#667085]/70 focus:border-[#C9A24D] focus:outline-none focus:ring-2 focus:ring-[#C9A24D]/20" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 rounded-full border border-[#E8E3DA] bg-[#FAF9F6] p-1">
+                    {(['todos','gold','plata','bronce','ninguno'] as const).map(m=>(
+                      <button key={m} onClick={()=>{setUserMembershipFilter(m); setUserPage(1);}} className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${userMembershipFilter===m? 'bg-[#1B1B1B] text-white shadow-sm':'text-[#667085] hover:bg-white'}`}>{m}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1 rounded-full border border-[#E8E3DA] bg-white p-1">
+                    {(['todos','socio','no-socio'] as const).map(f=>(
+                      <button key={f} onClick={()=>{setUserSocioFilter(f); setUserPage(1);}} className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${userSocioFilter===f? 'bg-[#C9A24D] text-[#151515]':'text-[#667085] hover:bg-[#FAF9F6]'}`}>{f.replace('-',' ')}</button>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <select value={userSort} onChange={e=>setUserSort(e.target.value as any)} className="appearance-none rounded-full border border-[#E8E3DA] bg-white py-2 pl-3 pr-7 text-xs font-medium focus:border-[#C9A24D] focus:outline-none focus:ring-2 focus:ring-[#C9A24D]/20">
+                      <option value="recientes">Más recientes</option>
+                      <option value="nombre">Nombre A–Z</option>
+                      <option value="edad">Mayor edad</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#667085]" />
+                  </div>
+                  <span className="hidden text-xs text-[#667085] sm:inline">{filteredUsers.length} resultados</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla desktop + cards mobile */}
+            {filteredUsers.length===0 ? (
+              <div className="rounded-2xl border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center shadow-sm">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><Users className="h-6 w-6"/></div>
+                <h3 className="mt-4 font-display text-xl">{users.length===0? 'Aún no hay usuarios registrados':'Sin resultados'}</h3>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#667085]">{users.length===0? 'Los usuarios que se registren desde el sitio aparecerán aquí con sus datos, membresía y estado de socio.':'Prueba con otro término de búsqueda o ajusta los filtros de membresía y socio.'}</p>
+                {users.length===0 ? null : <button onClick={()=>{setUserQuery(''); setUserMembershipFilter('todos'); setUserSocioFilter('todos');}} className="mt-4 rounded-full border border-[#E8E3DA] bg-white px-4 py-2 text-sm font-medium hover:bg-[#FAF9F6]">Limpiar filtros</button>}
+              </div>
+            ) : (
+              <>
+                {/* Desktop table */}
+                <div className="hidden overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.04)] lg:block">
+                  <div className="flex items-center justify-between border-b border-[#E8E3DA] bg-[#FAF9F6] px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#667085]">Listado de usuarios <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-[#151515] ring-1 ring-[#E8E3DA]">{filteredUsers.length}</span></p>
+                    <p className="text-xs text-[#667085]">Página {usersPageSafe} de {usersTotalPages} · {usersPaginated.length} visibles</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-white text-[11px] uppercase tracking-wide text-[#667085]">
+                        <tr className="border-b border-[#E8E3DA]">
+                          <th className="px-4 py-3 font-medium">Usuario</th>
+                          <th className="px-4 py-3 font-medium">Contacto</th>
+                          <th className="px-4 py-3 text-center font-medium">Edad</th>
+                          <th className="px-4 py-3 font-medium">Membresía</th>
+                          <th className="px-4 py-3 text-center font-medium">Socio</th>
+                          <th className="px-4 py-3 font-medium">Alta</th>
+                          <th className="px-4 py-3 text-right font-medium">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E8E3DA]">
+                        {usersPaginated.map(user=>{
+                          const mm = membershipMeta[user.membership];
+                          const MmIcon = mm.icon;
+                          return (
+                          <tr key={user.id} className="group bg-white hover:bg-[#FFF9E9]/60">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1B1B1B] text-xs font-semibold text-white ring-1 ring-[#E8E3DA]">{getInitials(user.fullname)}</span>
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium leading-none">{user.fullname}</p>
+                                  <p className="mt-1 flex items-center gap-1 truncate text-xs text-[#667085]"><Mail className="h-3 w-3"/>{user.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3"><span className="inline-flex items-center gap-1 rounded-full border border-[#E8E3DA] bg-[#FAF9F6] px-2.5 py-1 text-xs"><Phone className="h-3 w-3"/>{user.phone || '—'}</span></td>
+                            <td className="px-4 py-3 text-center"><span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-[#E8E3DA]">{user.age} años</span></td>
+                            <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${mm.cls}`}><MmIcon className="h-3 w-3"/>{mm.label}</span></td>
+                            <td className="px-4 py-3 text-center">{user.isSocio? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200"><ShieldCheck className="h-3 w-3"/> Socio</span> : <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-600">No socio</span>}</td>
+                            <td className="px-4 py-3 text-xs text-[#667085]">{new Date(user.createdAt).toLocaleDateString('es-AR', {day:'2-digit', month:'short', year:'numeric'})}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end gap-1.5">
+                                <button onClick={()=>openEditUser(user)} className="inline-flex items-center gap-1 rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]"><SquarePen className="h-3.5 w-3.5"/> Editar</button>
+                                <button onClick={()=>setUserDeleteTarget(user)} className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"><Trash2 className="h-3.5 w-3.5"/> Eliminar</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )})}
+                      </tbody>
+                    </table>
+                  </div>
+                  {usersTotalPages>1 && (
+                    <div className="flex items-center justify-between border-t border-[#E8E3DA] bg-[#FAF9F6] px-4 py-3">
+                      <p className="text-xs text-[#667085]">{filteredUsers.length} usuarios filtrados</p>
+                      <div className="flex items-center gap-1">
+                        <button disabled={usersPageSafe===1} onClick={()=>setUserPage(p=>Math.max(1,p-1))} className="rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-white">Anterior</button>
+                        {Array.from({length: usersTotalPages}).slice(0,5).map((_,i)=>{
+                          const n=i+1;
+                          return <button key={n} onClick={()=>setUserPage(n)} className={`h-7 w-7 rounded-full text-xs font-medium ${usersPageSafe===n? 'bg-[#1B1B1B] text-white':'border border-[#E8E3DA] bg-white hover:bg-[#FAF9F6]'}`}>{n}</button>
+                        })}
+                        <button disabled={usersPageSafe===usersTotalPages} onClick={()=>setUserPage(p=>Math.min(usersTotalPages,p+1))} className="rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-white">Siguiente</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Mobile cards */}
+                <div className="grid gap-3 lg:hidden">
+                  {usersPaginated.map(user=>{
+                    const mm = membershipMeta[user.membership];
+                    const MmIcon = mm.icon;
+                    return (
+                    <article key={user.id} className="rounded-2xl border border-[#E8E3DA] bg-white p-4 shadow-sm">
+                      <div className="flex gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1B1B1B] text-sm font-semibold text-white">{getInitials(user.fullname)}</span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate font-display text-base leading-none">{user.fullname}</h3>
+                          <p className="mt-1 truncate text-xs text-[#667085]">{user.email}</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${mm.cls}`}><MmIcon className="h-3 w-3"/>{mm.label}</span>
+                            {user.isSocio? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200">Socio</span>: <span className="rounded-full bg-zinc-100 px-2 py-1 text-[11px] text-zinc-600">No socio</span>}
+                            <span className="rounded-full bg-white px-2 py-1 text-[11px] ring-1 ring-[#E8E3DA]">{user.age} años</span>
+                          </div>
+                          <p className="mt-2 flex items-center gap-1 text-xs text-[#667085]"><Phone className="h-3 w-3"/>{user.phone || '—'} <span className="mx-1">·</span> <Calendar className="h-3 w-3"/>{new Date(user.createdAt).toLocaleDateString('es-AR')}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button onClick={()=>openEditUser(user)} className="flex-1 rounded-full border border-[#E8E3DA] bg-white px-3 py-2 text-sm font-medium hover:bg-[#FAF9F6]"><SquarePen className="mr-1 inline h-3.5 w-3.5"/>Editar</button>
+                        <button onClick={()=>setUserDeleteTarget(user)} className="rounded-full bg-white px-3 py-2 text-sm font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50"><Trash2 className="h-4 w-4"/></button>
+                      </div>
+                    </article>
+                  )})}
+                </div>
+              </>
+            )}
+
+            {/* Modal editar */}
+            {editingUser && userForm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+                <div className="max-h-[90vh] w-full max-w-xl overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
+                  <div className="flex items-center justify-between border-b border-[#E8E3DA] bg-[#FAF9F6] px-6 py-4">
+                    <div>
+                      <h3 className="font-display text-lg">Editar usuario</h3>
+                      <p className="text-xs text-[#667085]">ID <span className="font-mono">{editingUser.id.slice(0,8)}…</span> · Alta {new Date(editingUser.createdAt).toLocaleDateString('es-AR')}</p>
+                    </div>
+                    <button onClick={()=>{setEditingUser(null); setUserForm(null);}} className="rounded-full bg-white p-2 text-[#667085] ring-1 ring-[#E8E3DA] hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]"><X className="h-4 w-4"/></button>
+                  </div>
+                  <div className="overflow-y-auto px-6 py-5">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block text-sm font-medium sm:col-span-2">Nombre completo *<input value={userForm.fullname} onChange={e=>setUserForm({...userForm, fullname:e.target.value})} className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${userFormErrors.fullname? 'border-red-300 focus:border-red-400 focus:ring-red-200':'border-[#E8E3DA] focus:border-[#C9A24D] focus:ring-[#C9A24D]/20'}`} placeholder="Ej. Juan Pérez" /><span className="mt-1 block text-xs text-[#667085]">Visible en listados y pedidos.</span>{userFormErrors.fullname && <span className="mt-1 block text-xs font-medium text-red-600">{userFormErrors.fullname}</span>}</label>
+                      <label className="block text-sm font-medium">Email *<span className="relative flex items-center"><Mail className="pointer-events-none absolute left-3 h-4 w-4 text-[#667085]"/><input value={userForm.email} onChange={e=>setUserForm({...userForm, email:e.target.value})} className={`mt-1.5 w-full rounded-xl border bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:outline-none focus:ring-2 ${userFormErrors.email? 'border-red-300 focus:border-red-400 focus:ring-red-200':'border-[#E8E3DA] focus:border-[#C9A24D] focus:ring-[#C9A24D]/20'}`} placeholder="usuario@email.com" /></span>{userFormErrors.email && <span className="mt-1 block text-xs font-medium text-red-600">{userFormErrors.email}</span>}</label>
+                      <label className="block text-sm font-medium">Teléfono *<span className="relative flex items-center"><Phone className="pointer-events-none absolute left-3 h-4 w-4 text-[#667085]"/><input value={userForm.phone} onChange={e=>setUserForm({...userForm, phone:e.target.value})} className={`mt-1.5 w-full rounded-xl border bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:outline-none focus:ring-2 ${userFormErrors.phone? 'border-red-300 focus:border-red-400 focus:ring-red-200':'border-[#E8E3DA] focus:border-[#C9A24D] focus:ring-[#C9A24D]/20'}`} placeholder="+54 9 ..." /></span>{userFormErrors.phone && <span className="mt-1 block text-xs font-medium text-red-600">{userFormErrors.phone}</span>}</label>
+                      <label className="block text-sm font-medium">Edad *<input type="number" min={0} max={120} value={userForm.age} onChange={e=>setUserForm({...userForm, age: Number(e.target.value)})} className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${userFormErrors.age? 'border-red-300 focus:border-red-400 focus:ring-red-200':'border-[#E8E3DA] focus:border-[#C9A24D] focus:ring-[#C9A24D]/20'}`} />{userFormErrors.age && <span className="mt-1 block text-xs font-medium text-red-600">{userFormErrors.age}</span>}</label>
+                      <label className="block text-sm font-medium">Membresía
+                        <div className="relative mt-1.5">
+                          <select value={userForm.membership} onChange={e=>setUserForm({...userForm, membership:e.target.value as any})} className="w-full appearance-none rounded-xl border border-[#E8E3DA] bg-white px-3 py-2.5 pr-9 text-sm shadow-sm focus:border-[#C9A24D] focus:outline-none focus:ring-2 focus:ring-[#C9A24D]/20">
+                            <option value="ninguno">Sin membresía</option>
+                            <option value="bronce">Bronce</option>
+                            <option value="plata">Plata</option>
+                            <option value="gold">Gold</option>
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]"/>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 rounded-xl border border-[#E8E3DA] bg-[#FAF9F6] px-4 py-3 text-sm sm:col-span-2">
+                        <input type="checkbox" checked={userForm.isSocio} onChange={e=>setUserForm({...userForm, isSocio:e.target.checked})} className="h-4 w-4 rounded border-[#E8E3DA] text-[#C9A24D] focus:ring-[#C9A24D]" />
+                        <span className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4 text-emerald-600"/> Es socio</span>
+                        <span className="text-xs text-[#667085]">— habilita beneficios y descuentos</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2 border-t border-[#E8E3DA] bg-[#FAF9F6] px-6 py-4">
+                    <button onClick={()=>{setEditingUser(null); setUserForm(null);}} className="rounded-full border border-[#E8E3DA] bg-white px-5 py-2.5 text-sm font-medium hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]">Cancelar</button>
+                    <button onClick={saveUserEdit} disabled={userSaving} className="inline-flex items-center gap-2 rounded-full bg-[#1B1B1B] px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]">{userSaving? <RefreshCw className="h-4 w-4 animate-spin"/>:<Save className="h-4 w-4"/>} Guardar cambios</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Confirm delete */}
+            {userDeleteTarget && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+                <div className="w-full max-w-md rounded-2xl border border-[#E8E3DA] bg-white p-6 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertTriangle className="h-5 w-5"/></div>
+                  <h3 className="mt-3 font-display text-lg">¿Eliminar usuario?</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[#667085]">Se eliminará a <span className="font-medium text-[#151515]">{userDeleteTarget.fullname}</span> ({userDeleteTarget.email}). Esta acción no se puede deshacer y también lo deslogueará si está conectado.</p>
+                  <div className="mt-2 rounded-xl bg-[#FAF9F6] px-3 py-2 font-mono text-xs text-[#667085]">{userDeleteTarget.id}</div>
+                  <div className="mt-6 flex justify-end gap-2">
+                    <button onClick={()=>setUserDeleteTarget(null)} className="rounded-full border border-[#E8E3DA] bg-white px-5 py-2.5 text-sm font-medium hover:bg-[#FAF9F6]">Cancelar</button>
+                    <button onClick={confirmDeleteUser} className="rounded-full bg-[#F50078] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#d60069] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Eliminar definitivamente</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* ============ TESTIMONIALS ============ */}
         {area === 'testimonials' && <section>{testimonials.length === 0 ? <div className="rounded-2xl border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><MessageSquareQuote className="h-6 w-6" /></div><h3 className="mt-4 font-display text-xl">Aún no hay testimonios</h3><p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#667085]">Las nuevas calificaciones de clientes aparecerán aquí para moderación. Podrás aprobar, ocultar o eliminar cada reseña.</p></div> : testimonials.map((item) => <article key={item.id} className="mb-3 rounded-2xl border border-[#E8E3DA] bg-white p-5 shadow-sm transition hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-lg">{item.author}</h3><p className="mt-1 text-[#C9A24D]">{'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)} <span className="ml-2 rounded-full bg-[#FAF9F6] px-2 py-0.5 text-xs text-[#667085]">{item.rating}/5</span> {item.published && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">Publicado</span>}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.published? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200':'bg-amber-50 text-amber-700 ring-1 ring-amber-200'}`}>{item.published? 'Visible':'Pendiente'}</span></div><p className="mt-3 text-sm leading-relaxed">“{item.quote}”</p><div className="mt-4 flex gap-2"><button onClick={() => moderateTestimonial(item)} className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E3DA] bg-white px-4 py-1.5 text-sm font-medium hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]"><Check className="h-3.5 w-3.5" />{item.published ? 'Ocultar' : 'Aprobar'}</button><button onClick={() => removeTestimonial(item.id)} className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Eliminar</button></div></article>)}</section>}
