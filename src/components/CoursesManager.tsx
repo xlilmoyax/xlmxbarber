@@ -187,51 +187,67 @@ export default function CoursesManager({ onNavigate }: CoursesManagerProps) {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-zinc-50 via-white to-zinc-50">
-            {/* Header */}
-            <header className="bg-white border-b border-zinc-200 sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="flex items-center gap-4">
-                            <BookOpen className="w-8 h-8 text-amber-500" />
-                            <div>
-                                <h1 className="text-2xl font-bold text-zinc-900">Gestión de Cursos</h1>
-                                <p className="text-sm text-zinc-500">Administra cursos, secciones, lecciones, videos y accesos</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button onClick={handleCreateCourse} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white font-medium rounded-lg transition-colors flex items-center gap-2">
-                                <Plus className="w-4 h-4" /> Nuevo Curso
-                            </button>
-                        </div>
-                    </div>
+        <div className="space-y-5">
+            {/* Header premium integrado (no duplica el header global) */}
+            <div className="rounded-2xl border border-[#E8E3DA] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.04)]">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><BookOpen className="h-5 w-5"/></span>
+                  <div>
+                    <h2 className="font-display text-xl tracking-tight">Gestión de Cursos</h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#667085]">Administra cursos, secciones, lecciones, videos y accesos. Todos los cambios se guardan en Supabase con RLS <span className="rounded bg-[#FAF9F6] px-1.5 py-0.5 font-mono text-xs">courses / course_sections / course_lessons</span>.</p>
+                  </div>
                 </div>
-            </header>
+                <button onClick={handleCreateCourse} className="inline-flex items-center gap-2 rounded-full bg-[#1B1B1B] px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]">
+                  <Plus className="h-4 w-4"/> Nuevo Curso
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+                <span className="rounded-full bg-[#FAF9F6] px-2.5 py-1 ring-1 ring-[#E8E3DA]">{courses.length} cursos</span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 ring-1 ring-emerald-200">{metrics?.published_courses||0} publicados</span>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700 ring-1 ring-amber-200">{metrics?.draft_courses||0} borradores</span>
+                <button onClick={()=> onNavigate && onNavigate('productos')} className="rounded-full border border-[#E8E3DA] bg-white px-3 py-1 hover:bg-[#FAF9F6]">Ver tienda →</button>
+              </div>
+            </div>
 
             {/* Métricas */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-                    <MetricCard icon={BookOpen} label="Total Cursos" value={metrics?.total_courses || 0} color="blue" />
-                    <MetricCard icon={Video} label="Total Videos" value={metrics?.total_videos || 0} color="purple" />
-                    <MetricCard icon={Users} label="Alumnos" value={metrics?.total_students || 0} color="green" />
-                    <MetricCard icon={BarChart2} label="Publicados" value={metrics?.published_courses || 0} color="emerald" />
-                    <MetricCard icon={Settings} label="Borradores" value={metrics?.draft_courses || 0} color="amber" />
-                    <MetricCard icon={Clock} label="Horas Visto" value={Math.round((metrics?.total_watch_time_seconds || 0) / 3600)} color="indigo" />
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6 mb-6">
+                    {[
+                      {label:'Total Cursos', value: metrics?.total_courses || 0, Icon: BookOpen, hint: `${metrics?.published_courses||0} publicados`},
+                      {label:'Secciones', value: metrics?.total_sections || 0, Icon: BookOpen, hint: `${metrics?.total_lessons||0} lecciones`},
+                      {label:'Videos', value: metrics?.total_videos || 0, Icon: Video, hint: metrics?.total_videos? 'Listos':'Sin videos'},
+                      {label:'Alumnos', value: metrics?.total_students || 0, Icon: Users, hint: 'con acceso'},
+                      {label:'Borradores', value: metrics?.draft_courses || 0, Icon: Settings, hint: 'por publicar'},
+                      {label:'Horas visto', value: Math.round((metrics?.total_watch_time_seconds || 0) / 3600), Icon: BarChart2, hint: 'watch time'},
+                    ].map(({label,value,Icon,hint}:any)=>(
+                      <div key={label} className="relative overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#FFF9E9]/40 via-transparent to-transparent" aria-hidden/>
+                        <div className="relative flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#667085]">{label}</p>
+                            <p className="mt-2 font-display text-2xl leading-none">{value}</p>
+                            <p className="mt-1 text-xs text-[#667085]">{hint}</p>
+                          </div>
+                          <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#E8E3DA] bg-[#FAF9F6] text-[#C9A24D]"><Icon className="h-4 w-4"/></span>
+                        </div>
+                      </div>
+                    ))}
                 </div>
 
-                {/* Tabs */}
-                <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
-                    <nav className="flex border-b border-zinc-200" aria-label="Tabs">
-                        <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')}>📋 Listado</TabButton>
-                        {selectedCourse && (
-                            <>
-                                <TabButton active={activeTab === 'edit'} onClick={() => setActiveTab('edit')}>✏️ Editar Curso</TabButton>
-                                <TabButton active={activeTab === 'sections'} onClick={() => setActiveTab('sections')}>📚 Secciones</TabButton>
-                                <TabButton active={activeTab === 'videos'} onClick={() => setActiveTab('videos')}>🎬 Videos</TabButton>
-                                <TabButton active={activeTab === 'access'} onClick={() => setActiveTab('access')}>🔐 Accesos</TabButton>
-                            </>
-                        )}
-                    </nav>
+                {/* Tabs premium */}
+                <div className="overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.04)]">
+                    <div className="border-b border-[#E8E3DA] bg-[#FAF9F6] px-2 py-2">
+                      <nav className="flex flex-wrap gap-1.5" aria-label="Tabs">
+                        <button onClick={() => setActiveTab('list')} className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${activeTab==='list'? 'bg-[#1B1B1B] text-white shadow-sm':'border border-[#E8E3DA] bg-white text-[#667085] hover:bg-white'}`}>Listado</button>
+                        {selectedCourse && (<>
+                          <button onClick={() => setActiveTab('edit')} className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${activeTab==='edit'? 'bg-[#1B1B1B] text-white shadow-sm':'border border-[#E8E3DA] bg-white text-[#667085] hover:bg-white'}`}>Editar</button>
+                          <button onClick={() => setActiveTab('sections')} className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${activeTab==='sections'? 'bg-[#1B1B1B] text-white shadow-sm':'border border-[#E8E3DA] bg-white text-[#667085] hover:bg-white'}`}>Secciones</button>
+                          <button onClick={() => setActiveTab('videos')} className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${activeTab==='videos'? 'bg-[#1B1B1B] text-white shadow-sm':'border border-[#E8E3DA] bg-white text-[#667085] hover:bg-white'}`}>Videos</button>
+                          <button onClick={() => setActiveTab('access')} className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${activeTab==='access'? 'bg-[#1B1B1B] text-white shadow-sm':'border border-[#E8E3DA] bg-white text-[#667085] hover:bg-white'}`}>Accesos</button>
+                        </>)}
+                      </nav>
+                    </div>
 
                     <div className="p-6">
                         {activeTab === 'list' && (
@@ -244,8 +260,9 @@ export default function CoursesManager({ onNavigate }: CoursesManagerProps) {
                                 onSections={handleViewSections}
                                 onVideos={handleViewVideos}
                                 onAccess={handleViewAccess}
+                                onCreate={handleCreateCourse}
                                 onDuplicate={handleDuplicateCourse}
-                                onDelete={() => { setShowDeleteConfirm(true); }}
+                                onDelete={(course:any)=>{ setSelectedCourse(course); setShowDeleteConfirm(true); }}
                                 statusColors={statusColors}
                             />
                         )}
@@ -364,7 +381,7 @@ function ConfirmModal({ title, message, onConfirm, onCancel, confirmText, confir
 
 /* ---------- CourseList ---------- */
 
-function CourseList({ courses, categories, courseTypes, loading, onEdit, onSections, onVideos, onAccess, onDuplicate, onDelete, statusColors }: any) {
+function CourseList({ courses, categories, courseTypes, loading, onCreate, onEdit, onSections, onVideos, onAccess, onDuplicate, onDelete, statusColors }: any) {
     if (loading) return <div className="text-center py-12">Cargando...</div>;
 
     if (courses.length === 0) {
@@ -373,8 +390,8 @@ function CourseList({ courses, categories, courseTypes, loading, onEdit, onSecti
                 <BookOpen className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
                 <h3 className="text-xl font-medium text-zinc-600 mb-2">No hay cursos aún</h3>
                 <p className="text-zinc-500 mb-6">Crea tu primer curso para empezar</p>
-                <button onClick={() => window.dispatchEvent(new CustomEvent('create-course'))} className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-white font-medium rounded-lg">
-                    Crear primer curso
+                <button onClick={onCreate} className="inline-flex items-center gap-2 rounded-full bg-[#1B1B1B] px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black">
+                    <Plus className="h-4 w-4"/> Crear primer curso
                 </button>
             </div>
         );
@@ -403,13 +420,13 @@ function CourseList({ courses, categories, courseTypes, loading, onEdit, onSecti
                                     {course.published_at && <span>Publicado: {new Date(course.published_at).toLocaleDateString()}</span>}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                                <button onClick={() => onEdit(course)} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg" title="Editar">✏️</button>
-                                <button onClick={() => onSections(course)} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg" title="Secciones">📚</button>
-                                <button onClick={() => onVideos(course)} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg" title="Videos">🎬</button>
-                                <button onClick={() => onAccess(course)} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg" title="Accesos">🔐</button>
-                                <button onClick={() => { onDuplicate(course); }} className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg" title="Duplicar">📋</button>
-                                <button onClick={() => { onDelete(course); }} className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg" title="Eliminar">🗑️</button>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <button onClick={() => onEdit(course)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E3DA] bg-white text-[#667085] hover:bg-[#FAF9F6] hover:text-[#151515]" title="Editar"><Edit className="h-3.5 w-3.5"/></button>
+                                <button onClick={() => onSections(course)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E3DA] bg-white text-[#667085] hover:bg-[#FAF9F6]" title="Secciones"><BookOpen className="h-3.5 w-3.5"/></button>
+                                <button onClick={() => onVideos(course)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E3DA] bg-white text-[#667085] hover:bg-[#FAF9F6]" title="Videos"><Video className="h-3.5 w-3.5"/></button>
+                                <button onClick={() => onAccess(course)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E3DA] bg-white text-[#667085] hover:bg-[#FAF9F6]" title="Accesos"><Users className="h-3.5 w-3.5"/></button>
+                                <button onClick={() => onDuplicate(course)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E3DA] bg-white text-[#667085] hover:bg-[#FAF9F6]" title="Duplicar"><Copy className="h-3.5 w-3.5"/></button>
+                                <button onClick={() => onDelete(course)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50" title="Eliminar"><Trash2 className="h-3.5 w-3.5"/></button>
                             </div>
                         </div>
                     </div>

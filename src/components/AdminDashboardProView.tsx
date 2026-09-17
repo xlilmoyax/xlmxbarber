@@ -74,6 +74,10 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
   const [userFormErrors, setUserFormErrors] = useState<Record<string,string>>({});
   const [userSaving, setUserSaving] = useState(false);
   const [userDeleteTarget, setUserDeleteTarget] = useState<RegisteredUser | null>(null);
+  const [testimonialQuery, setTestimonialQuery] = useState('');
+  const [testimonialFilter, setTestimonialFilter] = useState<'todos' | 'publicados' | 'pendientes'>('todos');
+  const [testimonialPage, setTestimonialPage] = useState(1);
+  const [testimonialDeleteTarget, setTestimonialDeleteTarget] = useState<Testimonial | null>(null);
 
   // Ajustes premium state
   const [admins, setAdmins] = useState<any[]>([]);
@@ -560,8 +564,8 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
         {/* ============ COURSES ============ */}
         {area === 'courses' && <CoursesManager onNavigate={onNavigate} />}
 
-        {/* ============ PAGES ============ */}
-        {area === 'pages' && <PagesManager />}
+        {/* ============ PAGES PREMIUM ============ */}
+        {area === 'pages' && <PagesManager onNavigate={onNavigate} />}
 
         {/* ============ USERS PREMIUM ============ */}
         {area === 'users' && (
@@ -784,8 +788,147 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
           </section>
         )}
 
-        {/* ============ TESTIMONIALS ============ */}
-        {area === 'testimonials' && <section>{testimonials.length === 0 ? <div className="rounded-2xl border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><MessageSquareQuote className="h-6 w-6" /></div><h3 className="mt-4 font-display text-xl">Aún no hay testimonios</h3><p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#667085]">Las nuevas calificaciones de clientes aparecerán aquí para moderación. Podrás aprobar, ocultar o eliminar cada reseña.</p></div> : testimonials.map((item) => <article key={item.id} className="mb-3 rounded-2xl border border-[#E8E3DA] bg-white p-5 shadow-sm transition hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display text-lg">{item.author}</h3><p className="mt-1 text-[#C9A24D]">{'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)} <span className="ml-2 rounded-full bg-[#FAF9F6] px-2 py-0.5 text-xs text-[#667085]">{item.rating}/5</span> {item.published && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">Publicado</span>}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.published? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200':'bg-amber-50 text-amber-700 ring-1 ring-amber-200'}`}>{item.published? 'Visible':'Pendiente'}</span></div><p className="mt-3 text-sm leading-relaxed">“{item.quote}”</p><div className="mt-4 flex gap-2"><button onClick={() => moderateTestimonial(item)} className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E3DA] bg-white px-4 py-1.5 text-sm font-medium hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]"><Check className="h-3.5 w-3.5" />{item.published ? 'Ocultar' : 'Aprobar'}</button><button onClick={() => removeTestimonial(item.id)} className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Eliminar</button></div></article>)}</section>}
+        {/* ============ TESTIMONIALS PREMIUM ============ */}
+        {area === 'testimonials' && (
+          <section className="space-y-5">
+            {(() => {
+              const avgRating = testimonials.length? (testimonials.reduce((s,t)=>s+t.rating,0)/testimonials.length).toFixed(1): '—';
+              const published = testimonials.filter(t=>t.published).length;
+              const pending = testimonials.length - published;
+              const filtered = testimonials.filter(t=>{
+                const q = testimonialQuery.trim().toLowerCase();
+                const matchesQ = !q || `${t.author} ${t.quote}`.toLowerCase().includes(q);
+                const matchesF = testimonialFilter==='todos' || (testimonialFilter==='publicados'? t.published : !t.published);
+                return matchesQ && matchesF;
+              });
+              const perPage = 6;
+              const totalPages = Math.max(1, Math.ceil(filtered.length/perPage));
+              const safePage = Math.min(testimonialPage, totalPages);
+              const pageItems = filtered.slice((safePage-1)*perPage, safePage*perPage);
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    {[
+                      {label:'Total reseñas', value: testimonials.length, hint: `${published} visibles`, Icon: MessageSquareQuote},
+                      {label:'Publicadas', value: published, hint: `${pending} pendientes`, Icon: CheckCircle},
+                      {label:'Pendientes', value: pending, hint: pending? 'Requieren moderación':'Al día', Icon: Clock},
+                      {label:'Rating promedio', value: avgRating, hint: testimonials.length? `${testimonials.filter(t=>t.rating>=4).length} con 4–5★`:'Sin datos', Icon: Star},
+                    ].map(({label,value,hint,Icon}:any)=>(
+                      <div key={label} className="relative overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#FFF9E9]/40 via-transparent to-transparent" aria-hidden/>
+                        <div className="relative flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#667085]">{label}</p>
+                            <p className="mt-2 font-display text-2xl leading-none">{String(value)}</p>
+                            <p className="mt-1 text-xs text-[#667085]">{hint}</p>
+                          </div>
+                          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E8E3DA] bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><Icon className="h-4.5 w-4.5"/></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-2xl border border-[#E8E3DA] bg-white p-3 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#667085]"/>
+                        <input value={testimonialQuery} onChange={e=>{setTestimonialQuery(e.target.value); setTestimonialPage(1);}} placeholder="Buscar por autor o contenido" aria-label="Buscar testimonios" className="w-full rounded-full border border-[#E8E3DA] bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm placeholder:text-[#667085]/70 focus:border-[#C9A24D] focus:outline-none focus:ring-2 focus:ring-[#C9A24D]/20" />
+                      </div>
+                      <div className="flex items-center gap-1 rounded-full border border-[#E8E3DA] bg-[#FAF9F6] p-1">
+                        {(['todos','publicados','pendientes'] as const).map(f=>(
+                          <button key={f} onClick={()=>{setTestimonialFilter(f); setTestimonialPage(1);}} className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${testimonialFilter===f? 'bg-[#1B1B1B] text-white shadow-sm':'text-[#667085] hover:bg-white'}`}>{f}</button>
+                        ))}
+                      </div>
+                      <span className="hidden text-xs text-[#667085] sm:inline">{filtered.length} resultados</span>
+                    </div>
+                  </div>
+                  {filtered.length===0 ? (
+                    <div className="rounded-2xl border border-dashed border-[#E8E3DA] bg-white px-6 py-12 text-center shadow-sm">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FAF9F6] text-[#C9A24D] shadow-sm"><MessageSquareQuote className="h-6 w-6"/></div>
+                      <h3 className="mt-4 font-display text-xl">{testimonials.length===0? 'Aún no hay testimonios':'Sin resultados'}</h3>
+                      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#667085]">{testimonials.length===0? 'Las nuevas calificaciones de clientes aparecerán aquí para moderación. Podrás aprobar, ocultar o eliminar cada reseña.' : 'Prueba con otro término o ajusta el filtro de estado.'}</p>
+                      {testimonials.length>0 && filtered.length===0 && <button onClick={()=>{setTestimonialQuery(''); setTestimonialFilter('todos');}} className="mt-4 rounded-full border border-[#E8E3DA] bg-white px-4 py-2 text-sm font-medium hover:bg-[#FAF9F6]">Limpiar filtros</button>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="hidden overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:block">
+                        <div className="flex items-center justify-between border-b border-[#E8E3DA] bg-[#FAF9F6] px-4 py-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-[#667085]">Moderación de reseñas <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs ring-1 ring-[#E8E3DA]">{filtered.length}</span></p>
+                          <p className="text-xs text-[#667085]">Página {safePage} de {totalPages}</p>
+                        </div>
+                        <table className="w-full text-left text-sm">
+                          <thead className="bg-white text-[11px] uppercase tracking-wide text-[#667085]">
+                            <tr className="border-b border-[#E8E3DA]">
+                              <th className="px-4 py-3 font-medium">Autor</th>
+                              <th className="px-4 py-3 font-medium">Reseña</th>
+                              <th className="px-4 py-3 text-center font-medium">Rating</th>
+                              <th className="px-4 py-3 font-medium">Estado</th>
+                              <th className="px-4 py-3 text-right font-medium">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#E8E3DA]">
+                            {pageItems.map(item=>(
+                              <tr key={item.id} className="bg-white hover:bg-[#FFF9E9]/60">
+                                <td className="px-4 py-3 font-medium">{item.author}</td>
+                                <td className="px-4 py-3 max-w-[380px] truncate text-[#151515]">“{item.quote}”</td>
+                                <td className="px-4 py-3 text-center"><span className="inline-flex items-center gap-1 rounded-full bg-[#FAF9F6] px-2.5 py-1 text-xs ring-1 ring-[#E8E3DA]"><Star className="h-3 w-3 text-[#C9A24D]"/>{item.rating}/5</span></td>
+                                <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${item.published?'bg-emerald-50 text-emerald-700 ring-emerald-200':'bg-amber-50 text-amber-700 ring-amber-200'}`}>{item.published?'Visible':'Pendiente'}</span></td>
+                                <td className="px-4 py-3">
+                                  <div className="flex justify-end gap-1.5">
+                                    <button onClick={()=>moderateTestimonial(item)} className="rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium hover:bg-[#FAF9F6]">{item.published? 'Ocultar':'Aprobar'}</button>
+                                    <button onClick={()=>setTestimonialDeleteTarget(item)} className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20 hover:bg-red-50">Eliminar</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {totalPages>1 && (
+                          <div className="flex items-center justify-between border-t border-[#E8E3DA] bg-[#FAF9F6] px-4 py-3">
+                            <p className="text-xs text-[#667085]">{filtered.length} reseñas filtradas</p>
+                            <div className="flex items-center gap-1">
+                              <button disabled={safePage===1} onClick={()=>setTestimonialPage(p=>Math.max(1,p-1))} className="rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40">Anterior</button>
+                              {Array.from({length: totalPages}).slice(0,5).map((_,i)=>{const n=i+1; return <button key={n} onClick={()=>setTestimonialPage(n)} className={`h-7 w-7 rounded-full text-xs font-medium ${safePage===n? 'bg-[#1B1B1B] text-white':'border border-[#E8E3DA] bg-white hover:bg-[#FAF9F6]'}`}>{n}</button>})}
+                              <button disabled={safePage===totalPages} onClick={()=>setTestimonialPage(p=>Math.min(totalPages,p+1))} className="rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40">Siguiente</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid gap-3 lg:hidden">
+                        {pageItems.map(item=>(
+                          <article key={item.id} className="rounded-2xl border border-[#E8E3DA] bg-white p-4 shadow-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-display text-base">{item.author}</h3>
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${item.published?'bg-emerald-50 text-emerald-700 ring-emerald-200':'bg-amber-50 text-amber-700 ring-amber-200'}`}>{item.published?'Visible':'Pendiente'}</span>
+                            </div>
+                            <p className="mt-1 flex items-center gap-1 text-xs text-[#C9A24D]">{'★'.repeat(item.rating)}{'☆'.repeat(5-item.rating)} <span className="ml-1 text-[#667085]">{item.rating}/5</span></p>
+                            <p className="mt-2 text-sm leading-relaxed">“{item.quote}”</p>
+                            <div className="mt-3 flex gap-2">
+                              <button onClick={()=>moderateTestimonial(item)} className="flex-1 rounded-full border border-[#E8E3DA] bg-white px-3 py-2 text-sm font-medium hover:bg-[#FAF9F6]">{item.published? 'Ocultar':'Aprobar'}</button>
+                              <button onClick={()=>setTestimonialDeleteTarget(item)} className="rounded-full bg-white px-3 py-2 text-sm font-medium text-[#F50078] ring-1 ring-inset ring-[#F50078]/20"><Trash2 className="h-4 w-4"/></button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {testimonialDeleteTarget && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+                      <div className="w-full max-w-md rounded-2xl border border-[#E8E3DA] bg-white p-6 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertTriangle className="h-5 w-5"/></div>
+                        <h3 className="mt-3 font-display text-lg">¿Eliminar reseña?</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-[#667085]">Se eliminará la reseña de <span className="font-medium text-[#151515]">{testimonialDeleteTarget.author}</span> — “{testimonialDeleteTarget.quote.slice(0,60)}…” — Esta acción no se puede deshacer.</p>
+                        <div className="mt-6 flex justify-end gap-2">
+                          <button onClick={()=>setTestimonialDeleteTarget(null)} className="rounded-full border border-[#E8E3DA] bg-white px-5 py-2.5 text-sm font-medium hover:bg-[#FAF9F6]">Cancelar</button>
+                          <button onClick={async()=>{ const id=testimonialDeleteTarget.id; setTestimonialDeleteTarget(null); const {error}=await supabase.from('testimonials').delete().eq('id', id); if(error) setNotice(error.message); else { setNotice('Reseña eliminada.'); await loadData(); } }} className="rounded-full bg-[#F50078] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#d60069]">Eliminar</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </section>
+        )}
 
         {/* ============ SETTINGS PREMIUM ============ */}
         {area === 'settings' && (

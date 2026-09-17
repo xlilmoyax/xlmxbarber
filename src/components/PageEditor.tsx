@@ -670,7 +670,7 @@ function PageEditorModal({ meta, initial, onClose, onSaved }: {
 
 /* ------------------------------ listado de páginas ------------------------------ */
 
-export default function PagesManager() {
+export default function PagesManager({ onNavigate }: { onNavigate?: (screen: string) => void } = {}) {
   const [pages, setPages] = useState<Record<string, SitePage | null>>({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ManagedPage | null>(null);
@@ -695,26 +695,45 @@ export default function PagesManager() {
     return <div className="flex items-center gap-3 py-12 text-sm text-[#667085]"><Loader2 className="h-5 w-5 animate-spin text-[#C9A24D]" /> Cargando páginas…</div>;
   }
 
+  const publishedCount = Object.values(pages).filter(p=> p?.published && p.blocks.filter(b=>b.visible).length>0).length;
+  const draftCount = Object.values(pages).filter(p=> p?.published && p.blocks.filter(b=>b.visible).length===0).length;
+  const pendingCount = MANAGED_PAGES.length - publishedCount - draftCount;
+  const slugToScreen: Record<string,string> = { inicio: 'home', servicios: 'servicio-domicilio', aliados: 'sobre-nosotros', afiliados: 'membresias', novedades: 'home', cursos: 'cursos', productos: 'productos' };
+
   return (
-    <section>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-2xl text-[#151515]">Páginas del sitio</h3>
-          <p className="mt-1 text-sm text-[#667085]">Editá bloques, textos, imágenes, orden y visibilidad. Guardá para publicar al instante en Supabase.</p>
+    <section className="space-y-5">
+      {/* Header premium */}
+      <div className="rounded-2xl border border-[#E8E3DA] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.04)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-xl tracking-tight">Páginas del sitio</h3>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#667085]">Editá bloques reordenables, textos, imágenes y visibilidad. Guardá para publicar al instante en Supabase — sin commit. Usa <span className="rounded bg-[#FAF9F6] px-1.5 py-0.5 font-mono text-xs">Snapshot versionado</span> solo para plantillas o despliegue.</p>
+          </div>
+          <span className="hidden items-center gap-1.5 rounded-full border border-[#E8E3DA] bg-[#FAF9F6] px-3 py-1 text-xs text-[#667085] sm:inline-flex"><Globe className="h-3.5 w-3.5"/> {MANAGED_PAGES.length} páginas gestionadas</span>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-emerald-50 px-3 py-2 text-center ring-1 ring-emerald-200"><p className="text-[11px] uppercase tracking-wide text-emerald-700">Publicadas</p><p className="font-display text-xl">{publishedCount}</p></div>
+          <div className="rounded-xl bg-amber-50 px-3 py-2 text-center ring-1 ring-amber-200"><p className="text-[11px] uppercase tracking-wide text-amber-700">Borrador</p><p className="font-display text-xl">{draftCount}</p></div>
+          <div className="rounded-xl bg-zinc-50 px-3 py-2 text-center ring-1 ring-zinc-200"><p className="text-[11px] uppercase tracking-wide text-zinc-600">Sin editar</p><p className="font-display text-xl">{pendingCount}</p></div>
         </div>
       </div>
 
-      {notice && <div className="mb-4 flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" /> {notice}</div>}
+      {notice && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm"><CheckCircle2 className="h-4 w-4" /> {notice}</div>}
 
-      <div className="overflow-x-auto border border-[#E8E3DA] bg-white">
+      <div className="overflow-hidden rounded-2xl border border-[#E8E3DA] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.04)]">
+        <div className="flex items-center justify-between border-b border-[#E8E3DA] bg-[#FAF9F6] px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#667085]">Listado de páginas</p>
+          <span className="rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-[#E8E3DA]">{MANAGED_PAGES.length} totales</span>
+        </div>
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-[#E8E3DA] text-xs uppercase text-[#667085]">
+          <thead className="border-b border-[#E8E3DA] bg-white text-[11px] uppercase tracking-wide text-[#667085]">
             <tr>
-              <th className="p-4">Página</th>
-              <th className="p-4">Estado</th>
-              <th className="p-4">Contenido</th>
-              <th className="p-4">Última actualización</th>
-              <th className="p-4">Acciones</th>
+              <th className="px-4 py-3 font-medium">Página</th>
+              <th className="px-4 py-3 font-medium">Estado</th>
+              <th className="px-4 py-3 font-medium">Contenido</th>
+              <th className="px-4 py-3 font-medium">Última actualización</th>
+              <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -723,26 +742,30 @@ export default function PagesManager() {
               const isCustom = Boolean(page && page.published && page.blocks.filter((b) => b.visible).length > 0);
               const updatedAt = page?.updated_at;
               return (
-                <tr key={meta.slug} className="border-b border-[#E8E3DA]">
+                <tr key={meta.slug} className="border-b border-[#E8E3DA] bg-white hover:bg-[#FFF9E9]/60">
                   <td className="p-4">
                     <p className="font-semibold text-[#151515]">{meta.label}</p>
                     <p className="text-xs text-[#667085]">{meta.hint}</p>
                   </td>
                   <td className="p-4">
-                    {isCustom ? <span className="bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">Publicado</span>
-                      : page?.published ? <span className="bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Borrador</span>
-                      : <span className="bg-zinc-100 px-2 py-1 text-xs text-zinc-500">Sin editar</span>}
+                    {isCustom ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200"><CheckCircle2 className="h-3 w-3"/> Publicado</span>
+                      : page?.published ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200"><AlertTriangle className="h-3 w-3"/> Borrador</span>
+                      : <span className="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-600 ring-1 ring-zinc-200">Sin editar</span>}
                   </td>
                   <td className="p-4 text-xs text-[#667085]">{isCustom ? `${page!.blocks.length} bloques` : 'Usa el diseño actual de la web'}</td>
                   <td className="p-4 text-xs text-[#667085]">{updatedAt ? new Date(updatedAt).toLocaleString('es-AR') : '—'}</td>
                   <td className="p-4">
-                    <button onClick={() => { setEditing(meta); }} className="bg-[#1B1B1B] px-4 py-1.5 text-xs font-semibold text-white">Editar</button>
+                    <div className="flex justify-end gap-1.5">
+                      <button onClick={() => { const screen = slugToScreen[meta.slug]; if(onNavigate && screen){ onNavigate(screen); } else { window.location.hash = `#${screen||meta.slug}`; } }} className="inline-flex items-center gap-1 rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]"><Eye className="h-3.5 w-3.5"/> Ver</button>
+                      <button onClick={() => { setEditing(meta); }} className="inline-flex items-center gap-1 rounded-full bg-[#1B1B1B] px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A24D]"><Save className="h-3.5 w-3.5"/> Editar</button>
+                    </div>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
       </div>
 
       <p className="mt-4 flex items-start gap-2 text-xs text-[#667085]">
