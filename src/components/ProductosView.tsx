@@ -54,6 +54,8 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+  const [openCategories, setOpenCategories] = useState(true);
+  const [openBrands, setOpenBrands] = useState(false);
   const [sortBy, setSortBy] = useState('newest');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authProduct, setAuthProduct] = useState<Product | null>(null);
@@ -491,53 +493,71 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
         <div className="flex gap-8">
           {/* Sidebar Desktop */}
           <aside className="hidden lg:block w-64 shrink-0">
-            <div className="sticky top-24">
-              <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-6">Categorías</h3>
-              <ul className="space-y-3">
-                <li>
-                  <button
-                    onClick={() => setSelectedCategory('all')}
-                    className={`text-sm hover:text-amber-600 transition-colors ${selectedCategory === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                  >
-                    Todos los productos
-                  </button>
-                </li>
-                {categories.map(c => (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => setSelectedCategory(c.id)}
-                      className={`text-sm hover:text-amber-600 transition-colors text-left ${selectedCategory === c.id ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                    >
-                      {c.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-4 mt-8">Marcas</h3>
+            <div className="sticky top-24 space-y-4">
+              <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <button onClick={()=>setOpenCategories(v=>!v)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+                  <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-zinc-900">Categorías <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-[11px] text-white">{categories.length}</span>{selectedCategory!=='all' && <span className="h-2 w-2 rounded-full bg-amber-500"/>}</span>
+                  <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${openCategories? 'rotate-180':''}`} />
+                </button>
+                <div className={`grid transition-all ${openCategories? 'grid-rows-[1fr] opacity-100':'grid-rows-[0fr] opacity-0'}`}>
+                  <div className="overflow-hidden">
+                    <ul className="space-y-1 px-4 pb-4">
+                      <li>
+                        <button
+                          onClick={() => setSelectedCategory('all')}
+                          className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm ${selectedCategory === 'all' ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        >
+                          <span>Todos los productos</span>{selectedCategory==='all' && <span className="h-1.5 w-1.5 rounded-full bg-amber-600"/>}
+                        </button>
+                      </li>
+                      {categories.map(c => (
+                        <li key={c.id}>
+                          <button
+                            onClick={() => setSelectedCategory(c.id)}
+                            className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm ${selectedCategory === c.id ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                          >
+                            <span className="truncate">{c.name}</span>{selectedCategory===c.id && <span className="h-1.5 w-1.5 rounded-full bg-amber-600"/>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <button onClick={()=>setOpenBrands(v=>!v)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+                  <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-zinc-900">Marcas <span className="rounded-full bg-white px-2 py-0.5 text-[11px] ring-1 ring-zinc-200">{brands.length || 0}</span>{selectedBrand!=='all' && <span className="h-2 w-2 rounded-full bg-amber-500"/>}</span>
+                  <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${openBrands? 'rotate-180':''}`} />
+                </button>
+                <div className={`grid transition-all ${openBrands? 'grid-rows-[1fr] opacity-100':'grid-rows-[0fr] opacity-0'}`}>
+                  <div className="overflow-hidden px-4 pb-4">
               {brands.length === 0 ? (
                 <p className="text-sm text-zinc-400">Sin marcas cargadas.</p>
               ) : (
-                <ul className="space-y-3">
-                  <li>
-                    <button
-                      onClick={() => setSelectedBrand('all')}
-                      className={`text-sm hover:text-amber-600 transition-colors ${selectedBrand === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                    >
-                      Todas
-                    </button>
-                  </li>
-                  {brands.map(brand => (
-                    <li key={brand}>
-                      <button
-                        onClick={() => setSelectedBrand(brand)}
-                        className={`text-sm hover:text-amber-600 transition-colors text-left ${selectedBrand === brand ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                      >
-                        {brand}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                    <ul className="space-y-1">
+                      <li>
+                        <button
+                          onClick={() => setSelectedBrand('all')}
+                          className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm ${selectedBrand === 'all' ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        >
+                          <span>Todas</span>{selectedBrand==='all' && <span className="h-1.5 w-1.5 rounded-full bg-amber-600"/>}
+                        </button>
+                      </li>
+                      {brands.map(brand => (
+                        <li key={brand}>
+                          <button
+                            onClick={() => setSelectedBrand(brand)}
+                            className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm ${selectedBrand === brand ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                          >
+                            <span className="truncate">{brand}</span>{selectedBrand===brand && <span className="h-1.5 w-1.5 rounded-full bg-amber-600"/>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  </div>
+                </div>
+              </div>
               {!loggedInClient && (
                 <div className="mt-8 border border-zinc-200 p-4">
                   <p className="text-sm font-semibold text-zinc-900 flex items-center gap-2 mb-2"><Lock className="h-4 w-4 text-amber-500" /> Inicia sesión para comprar</p>
@@ -590,49 +610,67 @@ export default function ProductosView({ onNavigate, loggedInClient }: ProductosV
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-4 overflow-y-auto">
-              <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-4 mt-2">Categorías</h3>
-              <ul className="space-y-4">
-                <li>
-                  <button
-                    onClick={() => { setSelectedCategory('all'); setShowFiltersMobile(false); }}
-                    className={`block w-full text-left text-sm ${selectedCategory === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                  >
-                    Todos los productos
-                  </button>
-                </li>
-                {categories.map(c => (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => { setSelectedCategory(c.id); setShowFiltersMobile(false); }}
-                      className={`block w-full text-left text-sm ${selectedCategory === c.id ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                    >
-                      {c.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <h3 className="font-semibold text-zinc-900 tracking-wider text-sm uppercase mb-4 mt-6">Marcas</h3>
-              <ul className="space-y-4">
-                <li>
-                  <button
-                    onClick={() => { setSelectedBrand('all'); setShowFiltersMobile(false); }}
-                    className={`block w-full text-left text-sm ${selectedBrand === 'all' ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                  >
-                    Todas
-                  </button>
-                </li>
-                {brands.map(brand => (
-                  <li key={brand}>
-                    <button
-                      onClick={() => { setSelectedBrand(brand); setShowFiltersMobile(false); }}
-                      className={`block w-full text-left text-sm ${selectedBrand === brand ? 'text-amber-600 font-medium' : 'text-zinc-600'}`}
-                    >
-                      {brand}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            <div className="p-4 overflow-y-auto space-y-4">
+              <div className="rounded-xl border border-zinc-200">
+                <button onClick={()=>setOpenCategories(v=>!v)} className="flex w-full items-center justify-between px-3 py-3 text-left">
+                  <span className="text-sm font-semibold uppercase tracking-wider text-zinc-900">Categorías</span>
+                  <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${openCategories? 'rotate-180':''}`} />
+                </button>
+                <div className={`grid transition-all ${openCategories? 'grid-rows-[1fr]':'grid-rows-[0fr]'}`}>
+                  <div className="overflow-hidden">
+                    <ul className="space-y-1 px-3 pb-3">
+                      <li>
+                        <button
+                          onClick={() => { setSelectedCategory('all'); }}
+                          className={`block w-full rounded-lg px-2 py-1.5 text-left text-sm ${selectedCategory === 'all' ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600'}`}
+                        >
+                          Todos los productos
+                        </button>
+                      </li>
+                      {categories.map(c => (
+                        <li key={c.id}>
+                          <button
+                            onClick={() => { setSelectedCategory(c.id); }}
+                            className={`block w-full rounded-lg px-2 py-1.5 text-left text-sm ${selectedCategory === c.id ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600'}`}
+                          >
+                            {c.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-zinc-200">
+                <button onClick={()=>setOpenBrands(v=>!v)} className="flex w-full items-center justify-between px-3 py-3 text-left">
+                  <span className="text-sm font-semibold uppercase tracking-wider text-zinc-900">Marcas</span>
+                  <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${openBrands? 'rotate-180':''}`} />
+                </button>
+                <div className={`grid transition-all ${openBrands? 'grid-rows-[1fr]':'grid-rows-[0fr]'}`}>
+                  <div className="overflow-hidden px-3 pb-3">
+                    <ul className="space-y-1">
+                      <li>
+                        <button
+                          onClick={() => { setSelectedBrand('all'); }}
+                          className={`block w-full rounded-lg px-2 py-1.5 text-left text-sm ${selectedBrand === 'all' ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600'}`}
+                        >
+                          Todas
+                        </button>
+                      </li>
+                      {brands.map(brand => (
+                        <li key={brand}>
+                          <button
+                            onClick={() => { setSelectedBrand(brand); }}
+                            className={`block w-full rounded-lg px-2 py-1.5 text-left text-sm ${selectedBrand === brand ? 'bg-amber-50 text-amber-700 font-medium' : 'text-zinc-600'}`}
+                          >
+                            {brand}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
               {!loggedInClient && (
                 <div className="mt-8 border border-zinc-200 p-4">
                   <p className="text-sm font-semibold text-zinc-900 mb-2">Inicia sesión para comprar</p>
