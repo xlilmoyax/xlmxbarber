@@ -5,7 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { Screen } from '../types';
-import { Crown, Sparkles, Gamepad2, ArrowRight } from 'lucide-react';
+import { Crown, Sparkles, Gamepad2, ArrowRight, BookOpen } from 'lucide-react';
 import { IMAGES } from '../data';
 import TestimonialsSection from './TestimonialsSection';
 import { renderBlocks } from '../lib/pageBlocks';
@@ -15,6 +15,46 @@ import { SitePage } from '../lib/pageStore';
 function PageSection({ page, children }: { page: { loading: boolean; page: SitePage | null }; children: React.ReactNode }) {
   if (!page || !page.page) return <>{children}</>;
   return <div className="bg-[#FAF9F6]">{renderBlocks(page.page.blocks)}</div>;
+}
+
+const VERSICULOS_RVR1960: { ref: string; text: string }[] = [
+  { ref: 'Salmos 51:10', text: 'Crea en mí, oh Dios, un corazón limpio, y renueva un espíritu recto dentro de mí.' },
+  { ref: 'Jeremías 29:11', text: 'Porque yo sé los pensamientos que tengo acerca de vosotros, dice Jehová, pensamientos de paz, y no de mal, para daros el fin que esperáis.' },
+  { ref: 'Filipenses 4:13', text: 'Todo lo puedo en Cristo que me fortalece.' },
+  { ref: 'Salmos 23:1', text: 'Jehová es mi pastor; nada me faltará.' },
+  { ref: 'Isaías 41:10', text: 'No temas, porque yo estoy contigo; no desmayes, porque yo soy tu Dios que te esfuerzo.' },
+  { ref: 'Romanos 8:28', text: 'Y sabemos que a los que aman a Dios, todas las cosas les ayudan a bien.' },
+  { ref: 'Proverbios 3:5-6', text: 'Fíate de Jehová de todo tu corazón, y no te apoyes en tu propia prudencia. Reconócelo en todos tus caminos, y él enderezará tus veredas.' },
+  { ref: 'Josué 1:9', text: 'Mira que te mando que te esfuerces y seas valiente; no temas ni desmayes, porque Jehová tu Dios estará contigo en dondequiera que vayas.' },
+  { ref: 'Salmos 46:1', text: 'Dios es nuestro amparo y fortaleza, nuestro pronto auxilio en las tribulaciones.' },
+  { ref: '2 Corintios 5:17', text: 'De modo que si alguno está en Cristo, nueva criatura es; las cosas viejas pasaron; he aquí todas son hechas nuevas.' },
+  { ref: 'Mateo 11:28', text: 'Venid a mí todos los que estáis trabajados y cargados, y yo os haré descansar.' },
+  { ref: 'Salmos 119:105', text: 'Lámpara es a mis pies tu palabra, y lumbrera a mi camino.' },
+  { ref: 'Isaías 40:31', text: 'Pero los que esperan a Jehová tendrán nuevas fuerzas; levantarán alas como las águilas.' },
+  { ref: 'Juan 14:6', text: 'Jesús le dijo: Yo soy el camino, y la verdad, y la vida; nadie viene al Padre, sino por mí.' },
+  { ref: 'Salmos 27:1', text: 'Jehová es mi luz y mi salvación; ¿de quién temeré? Jehová es la fortaleza de mi vida; ¿de quién he de atemorizarme?' },
+  { ref: 'Romanos 12:2', text: 'No os conforméis a este siglo, sino transformaos por medio de la renovación de vuestro entendimiento.' },
+  { ref: 'Filipenses 4:6-7', text: 'Por nada estéis afanosos, sino sean conocidas vuestras peticiones delante de Dios en toda oración y ruego, con acción de gracias. Y la paz de Dios guardará vuestros corazones.' },
+  { ref: 'Salmos 37:4', text: 'Deléitate asimismo en Jehová, y él te concederá las peticiones de tu corazón.' },
+  { ref: '1 Pedro 5:7', text: 'Echando toda vuestra ansiedad sobre él, porque él tiene cuidado de vosotros.' },
+  { ref: 'Santiago 1:5', text: 'Y si alguno de vosotros tiene falta de sabiduría, pídala a Dios, el cual da a todos abundantemente y sin reproche.' },
+  { ref: 'Salmos 91:1-2', text: 'El que habita al abrigo del Altísimo morará bajo la sombra del Omnipotente. Diré yo a Jehová: Esperanza mía, y castillo mío.' },
+  { ref: 'Efesios 2:10', text: 'Porque somos hechura suya, creados en Cristo Jesús para buenas obras, las cuales Dios preparó de antemano.' },
+  { ref: 'Lamentaciones 3:22-23', text: 'Por la misericordia de Jehová no hemos sido consumidos, porque nunca decayeron sus misericordias. Nuevas son cada mañana; grande es tu fidelidad.' },
+  { ref: 'Colosenses 3:23', text: 'Y todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres.' },
+  { ref: 'Juan 3:16', text: 'Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.' },
+  { ref: 'Salmos 34:8', text: 'Gustad, y ved que es bueno Jehová; dichoso el hombre que confía en él.' },
+  { ref: 'Hebreos 11:1', text: 'Es, pues, la fe la certeza de lo que se espera, la convicción de lo que no se ve.' },
+  { ref: 'Mateo 5:9', text: 'Bienaventurados los pacificadores, porque ellos serán llamados hijos de Dios.' },
+  { ref: 'Gálatas 5:22-23', text: 'Mas el fruto del Espíritu es amor, gozo, paz, paciencia, benignidad, bondad, fe, mansedumbre, templanza.' },
+  { ref: 'Salmos 121:1-2', text: 'Alzaré mis ojos a los montes; ¿de dónde vendrá mi socorro? Mi socorro viene de Jehová, que hizo los cielos y la tierra.' },
+];
+
+function getVersiculoDelDia() {
+  const start = new Date(new Date().getFullYear(), 0, 0);
+  const diff = Date.now() - start.getTime();
+  const dayOfYear = Math.floor(diff / 86400000);
+  return VERSICULOS_RVR1960[dayOfYear % VERSICULOS_RVR1960.length];
 }
 
 interface HomeViewProps {
@@ -54,6 +94,7 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
   const aliados = usePageBlocks('aliados');
   const afiliados = usePageBlocks('afiliados');
   const novedades = usePageBlocks('novedades');
+  const versiculo = React.useMemo(() => getVersiculoDelDia(), []);
 
   return (
     <div id="home-view" className="relative text-[#e2e2e2] bg-[#121414] overflow-x-hidden font-sans">
@@ -62,7 +103,7 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
       {/* 1. Hero Section */}
       <section 
         id="home" 
-        className="relative h-[90vh] flex items-center justify-center overflow-hidden"
+        className="relative min-h-[90vh] flex items-center justify-center overflow-hidden py-12"
       >
         <div className="absolute inset-0 z-0 overflow-hidden">
           <img 
@@ -98,6 +139,32 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
             >
               CONOCÉ MÁS
             </button>
+          </div>
+
+          {/* Versículo del día — RVR1960 — vidrio moderno reflectante */}
+          <div className="mt-10 flex justify-center">
+            <div className="group relative w-full max-w-3xl overflow-hidden rounded-2xl border border-white/15 bg-white/[0.07] p-[1px] shadow-[0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-xl">
+              {/* brillo superior reflectante */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-60" />
+              {/* reflejo diagonal sutil */}
+              <div className="pointer-events-none absolute -top-24 -left-24 h-48 w-48 rotate-12 bg-gradient-to-br from-white/10 via-white/5 to-transparent blur-2xl opacity-40" />
+              <div className="relative rounded-[15px] bg-gradient-to-b from-white/[0.08] to-white/[0.02] px-5 py-4 sm:px-7 sm:py-5">
+                <div className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#e9c176]/90">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#e9c176]/15 ring-1 ring-[#e9c176]/30"><BookOpen className="h-3.5 w-3.5" /></span>
+                  Versículo del día · RVR1960
+                  <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block" />
+                  <span className="hidden font-normal normal-case tracking-normal text-white/60 sm:inline">{new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                </div>
+                <p className="mt-3 text-center font-serif text-base leading-relaxed text-white/90 sm:text-lg">
+                  <span className="text-white/40">“</span>
+                  <span className="italic">{versiculo.text}</span>
+                  <span className="text-white/40">”</span>
+                </p>
+                <p className="mt-2 text-center text-xs font-semibold uppercase tracking-[0.14em] text-[#e9c176]">{versiculo.ref}</p>
+                {/* reflejo inferior vidrio */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#e9c176]/20 to-transparent opacity-50" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
