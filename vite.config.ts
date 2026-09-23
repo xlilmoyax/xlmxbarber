@@ -4,5 +4,5 @@ import tailwindcss from '@tailwindcss/vite' // Asegúrate de tener esta importac
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/',
+  base: '/XLMX-BARBER/',
 })

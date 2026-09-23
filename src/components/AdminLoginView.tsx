@@ -268,21 +268,31 @@ export default function AdminLoginView({
     }
   };
 
-  // Admin login handler (Credential securitization using environment variables)
+  // Admin login — sin fallback hardcodeado: exige VITE_ADMIN_* + Supabase Auth
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Supabase Auth creates the session required by the RLS policies.
-    const VALID_USER = import.meta.env.VITE_ADMIN_USER || 'xlmxbarber';
-    const VALID_PASS = import.meta.env.VITE_ADMIN_PASS || '11824';
+    const VALID_USER = import.meta.env.VITE_ADMIN_USER;
+    const VALID_PASS = import.meta.env.VITE_ADMIN_PASS;
+    if (!VALID_USER || !VALID_PASS) {
+      setAdminErrorMsg('Falta configuración VITE_ADMIN_USER / VITE_ADMIN_PASS. Configura .env.local y rebuild.');
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+      return;
+    }
 
     const cleanUsername = sanitizeInput(username).trim();
     const cleanPassword = sanitizeInput(password).trim();
+    if (!cleanUsername || !cleanPassword) {
+      setAdminErrorMsg('Completa usuario y contraseña.');
+      return;
+    }
 
     if (isSupabaseConfigured) {
       setLoading(true);
       setAdminErrorMsg(null);
-      const authEmail = cleanUsername.toLowerCase() === 'xlmxbarber'
+      // Mapeo legacy: xlmxbarber -> email real del owner (evita exponer email en UI)
+      const authEmail = cleanUsername.toLowerCase() === VALID_USER.toLowerCase()
         ? 'matymoya18@gmail.com'
         : cleanUsername;
       const { error } = await supabase.auth.signInWithPassword({
@@ -304,6 +314,7 @@ export default function AdminLoginView({
       return;
     }
 
+    // Sin Supabase (solo dev local) — valida contra env, sin hardcode
     if (cleanUsername === VALID_USER && cleanPassword === VALID_PASS) {
       setAdminErrorMsg(null);
       setIsShaking(false);
