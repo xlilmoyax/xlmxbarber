@@ -268,7 +268,10 @@ const handleAddUser = async (newUser: RegisteredUser): Promise<boolean> => {
 
     if (error) {
       console.error('Error al guardar en Supabase:', error.message, error.details ?? error);
-      alert('Hubo un error al guardar tus datos, intenta de nuevo.');
+      // 23505 = unique violation (email ya existe)
+      if ((error as any).code === '23505' || /duplicate|unique/i.test(error.message)) {
+        console.warn('Email duplicado');
+      }
       return false;
     }
   } else {
@@ -277,8 +280,8 @@ const handleAddUser = async (newUser: RegisteredUser): Promise<boolean> => {
 
   setUsers((prev) => [newUser, ...prev]);
   console.log(isSupabaseConfigured ? 'Usuario guardado con éxito en la nube' : 'Usuario guardado localmente');
-  alert('¡Registro exitoso!');
 
+  // Emails en background — no bloquean el registro (Promise.allSettled)
   const emailTemplateParams = {
     user_id: newUser.id,
     user_name: newUser.fullname,
@@ -292,28 +295,6 @@ const handleAddUser = async (newUser: RegisteredUser): Promise<boolean> => {
     registration_date: new Date().toLocaleString(),
     welcome_message: 'Gracias por registrarte en XLMX Barber, te damos la bienvenida al club premium.',
   };
-
-  try {
-    await emailjs.send('service_ta0f47t', 'template_16q07to', emailTemplateParams);
-    console.log('Email de registro enviado correctamente.');
-    setEmailStatus('Notificación de registro enviada correctamente.');
-    setTimeout(() => setEmailStatus(null), 5000);
-  } catch (emailError: any) {
-    console.error('Error al enviar notificación por email (welcome):', emailError);
-    const errInfo = { message: emailError?.message ?? String(emailError), stack: emailError?.stack ?? null };
-    setEmailStatus('No se pudo enviar la notificación de bienvenida. El sistema la reintentará automáticamente.');
-    const jobEntry = { id: newUser.id, template: 'template_16q07to', params: emailTemplateParams, error: errInfo, ts: new Date().toISOString(), attempts: 1 };
-    setFailedEmailJobs((prev) => [...prev, jobEntry]);
-    // try to persist for automatic retries
-    (async () => {
-      const dbId = await persistFailedEmailJob(jobEntry);
-      if (dbId) {
-        setFailedEmailJobs((prev) => prev.map((j) => (j === jobEntry ? { ...j, dbId } : j)));
-      }
-    })();
-    setTimeout(() => setEmailStatus(null), 8000);
-  }
-
   const adminEmailTemplateParams = {
     user_id: newUser.id,
     user_name: newUser.fullname,
@@ -325,22 +306,37 @@ const handleAddUser = async (newUser: RegisteredUser): Promise<boolean> => {
     admin_notice: 'Nuevo cliente registrado en el sistema.',
     admin_email: 'matymoya4@gmail.com',
   };
-
-  try {
-    await emailjs.send('service_ta0f47t', 'template_9c1f548', adminEmailTemplateParams);
-    console.log('Email administrativo enviado correctamente.');
-  } catch (adminEmailError: any) {
-    console.error('Error al enviar notificación administrativa por email:', adminEmailError);
-    const errInfo = { message: adminEmailError?.message ?? String(adminEmailError), stack: adminEmailError?.stack ?? null };
-    const adminJob = { id: newUser.id, template: 'template_9c1f548', params: adminEmailTemplateParams, error: errInfo, ts: new Date().toISOString(), attempts: 1 };
-    setFailedEmailJobs((prev) => [...prev, adminJob]);
-    (async () => {
-      const dbId = await persistFailedEmailJob(adminJob);
-      if (dbId) {
-        setFailedEmailJobs((prev) => prev.map((j) => (j === adminJob ? { ...j, dbId } : j)));
-      }
-    })();
-  }
+  void (async () => {
+    const results = await Promise.allSettled([
+      emailjs.send('service_ta0f47t', 'template_16q07to', emailTemplateParams),
+      emailjs.send('service_ta0f47t', 'template_9c1f548', adminEmailTemplateParams),
+    ]);
+    const [welcomeRes, adminRes] = results;
+    if (welcomeRes.status === 'fulfilled') {
+      console.log('Email de registro enviado correctamente.');
+      setEmailStatus('Notificación de registro enviada correctamente.');
+      setTimeout(() => setEmailStatus(null), 5000);
+    } else {
+      const emailError: any = (welcomeRes as PromiseRejectedResult).reason;
+      console.error('Error al enviar notificación por email (welcome):', emailError);
+      const errInfo = { message: emailError?.message ?? String(emailError), stack: emailError?.stack ?? null };
+      setEmailStatus('No se pudo enviar la notificación de bienvenida. El sistema la reintentará automáticamente.');
+      const jobEntry = { id: newUser.id, template: 'template_16q07to', params: emailTemplateParams, error: errInfo, ts: new Date().toISOString(), attempts: 1 };
+      setFailedEmailJobs((prev) => [...prev, jobEntry]);
+      void persistFailedEmailJob(jobEntry).then(dbId => { if (dbId) setFailedEmailJobs(prev => prev.map(j => (j === jobEntry ? { ...j, dbId } : j))); });
+      setTimeout(() => setEmailStatus(null), 8000);
+    }
+    if (adminRes.status === 'fulfilled') {
+      console.log('Email administrativo enviado correctamente.');
+    } else {
+      const adminEmailError: any = (adminRes as PromiseRejectedResult).reason;
+      console.error('Error al enviar notificación administrativa por email:', adminEmailError);
+      const errInfo = { message: adminEmailError?.message ?? String(adminEmailError), stack: adminEmailError?.stack ?? null };
+      const adminJob = { id: newUser.id, template: 'template_9c1f548', params: adminEmailTemplateParams, error: errInfo, ts: new Date().toISOString(), attempts: 1 };
+      setFailedEmailJobs((prev) => [...prev, adminJob]);
+      void persistFailedEmailJob(adminJob).then(dbId => { if (dbId) setFailedEmailJobs(prev => prev.map(j => (j === adminJob ? { ...j, dbId } : j))); });
+    }
+  })();
 
   return true;
 };
