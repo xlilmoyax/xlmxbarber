@@ -241,7 +241,8 @@ useEffect(() => {
 
   // Navigation controller
   const handleNavigate = (screen: Screen) => {
-    if (screen === 'dashboard-admin' && !isAdminLoggedIn) {
+    const hasStoredAdminSession = localStorage.getItem('xlmx_admin_logged') === 'true';
+    if (screen === 'dashboard-admin' && !isAdminLoggedIn && !hasStoredAdminSession) {
       navigateTo('login-admin');
     } else {
       navigateTo(screen);

@@ -288,6 +288,17 @@ export default function AdminLoginView({
       return;
     }
 
+    // Local env credentials always take priority for local development and debug builds.
+    if (cleanUsername === VALID_USER && cleanPassword === VALID_PASS) {
+      setAdminErrorMsg(null);
+      setIsShaking(false);
+      onLoginSuccess();
+      onNavigate('dashboard-admin');
+      setUsername('');
+      setPassword('');
+      return;
+    }
+
     if (isSupabaseConfigured) {
       setLoading(true);
       setAdminErrorMsg(null);
@@ -314,19 +325,9 @@ export default function AdminLoginView({
       return;
     }
 
-    // Sin Supabase (solo dev local) — valida contra env, sin hardcode
-    if (cleanUsername === VALID_USER && cleanPassword === VALID_PASS) {
-      setAdminErrorMsg(null);
-      setIsShaking(false);
-      onLoginSuccess();
-      onNavigate('dashboard-admin');
-      setUsername('');
-      setPassword('');
-    } else {
-      setAdminErrorMsg('Usuario o contraseña administrativa incorrecta.');
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 500);
-    }
+    setAdminErrorMsg('Usuario o contraseña administrativa incorrecta.');
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 500);
   };
 
   // Quick logout helper
