@@ -22,14 +22,16 @@ import dotenv from 'dotenv';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 
-dotenv.config({ path: 'server/.env' });
+dotenv.config({ path: ['server/.env', '.env.local', '.env'] });
 
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
 const REPO = process.env.GITHUB_REPO || 'xlilmoyax/xlmxbarber';
 const BRANCH = process.env.GITHUB_BRANCH || 'main';
 const WORKFLOW = process.env.GITHUB_WORKFLOW || 'deploy.yml';
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,https://xlmxbarber.com').split(',').map((o) => o.trim());
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3002,https://xlmxbarber.com').split(',').map((o) => o.trim());
+const ADMIN_USERNAME = process.env.ADMIN_USER || process.env.VITE_ADMIN_USER || 'xlmxbarber';
+const ADMIN_PASSWORD = process.env.ADMIN_PASS || process.env.VITE_ADMIN_PASS || '11824';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -96,6 +98,26 @@ async function gh(path, options = {}) {
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, repo: REPO, branch: BRANCH });
+});
+
+app.post('/api/admin-auth', (req, res) => {
+  const { username, password } = req.body || {};
+  const cleanUsername = typeof username === 'string' ? username.trim() : '';
+  const cleanPassword = typeof password === 'string' ? password.trim() : '';
+
+  if (!cleanUsername || !cleanPassword) {
+    return fail(res, 400, 'Completa usuario y contraseña.');
+  }
+
+  if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+    return fail(res, 500, 'Falta configuración del acceso administrativo. Revisa .env.local.');
+  }
+
+  if (cleanUsername !== ADMIN_USERNAME || cleanPassword !== ADMIN_PASSWORD) {
+    return fail(res, 401, 'Credenciales de acceso incorrectas.');
+  }
+
+  return res.json({ ok: true, message: 'Acceso autorizado.' });
 });
 
 app.post('/api/github/publish', async (req, res) => {

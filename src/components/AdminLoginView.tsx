@@ -268,18 +268,9 @@ export default function AdminLoginView({
     }
   };
 
-  // Admin login — sin fallback hardcodeado: exige VITE_ADMIN_* + Supabase Auth
+  // Admin login validado en backend para no exponer credenciales en el bundle.
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const VALID_USER = import.meta.env.VITE_ADMIN_USER;
-    const VALID_PASS = import.meta.env.VITE_ADMIN_PASS;
-    if (!VALID_USER || !VALID_PASS) {
-      setAdminErrorMsg('Falta configuración VITE_ADMIN_USER / VITE_ADMIN_PASS. Configura .env.local y rebuild.');
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 500);
-      return;
-    }
 
     const cleanUsername = sanitizeInput(username).trim();
     const cleanPassword = sanitizeInput(password).trim();
@@ -288,46 +279,35 @@ export default function AdminLoginView({
       return;
     }
 
-    // Local env credentials always take priority for local development and debug builds.
-    if (cleanUsername === VALID_USER && cleanPassword === VALID_PASS) {
+    setLoading(true);
+    setAdminErrorMsg(null);
+
+    try {
+      const adminApiUrl = (import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:8787').replace(/\/$/, '');
+      const response = await fetch(`${adminApiUrl}/api/admin-auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: cleanUsername, password: cleanPassword }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || 'Credenciales de acceso incorrectas.');
+      }
+
       setAdminErrorMsg(null);
       setIsShaking(false);
       onLoginSuccess();
       onNavigate('dashboard-admin');
       setUsername('');
       setPassword('');
-      return;
-    }
-
-    if (isSupabaseConfigured) {
-      setLoading(true);
-      setAdminErrorMsg(null);
-      // Mapeo legacy: xlmxbarber -> email real del owner (evita exponer email en UI)
-      const authEmail = cleanUsername.toLowerCase() === VALID_USER.toLowerCase()
-        ? 'matymoya18@gmail.com'
-        : cleanUsername;
-      const { error } = await supabase.auth.signInWithPassword({
-        email: authEmail,
-        password: cleanPassword,
-      });
-
-      if (!error) {
-        onLoginSuccess();
-        onNavigate('dashboard-admin');
-        setUsername('');
-        setPassword('');
-      } else {
-        setAdminErrorMsg('No se pudo iniciar sesión con Supabase Auth. Verifica el correo, la contraseña y el rol administrador.');
-        setIsShaking(true);
-        setTimeout(() => setIsShaking(false), 500);
-      }
+    } catch (err: any) {
+      setAdminErrorMsg(err.message || 'No se pudo verificar el acceso administrativo.');
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setAdminErrorMsg('Usuario o contraseña administrativa incorrecta.');
-    setIsShaking(true);
-    setTimeout(() => setIsShaking(false), 500);
   };
 
   // Quick logout helper

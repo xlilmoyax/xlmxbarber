@@ -1039,7 +1039,7 @@ export default function AdminDashboardProView({ users, onLogout, onNavigate, onD
                   <div className="rounded-xl border border-[#E8E3DA] bg-[#FAF9F6] p-3">
                     <div className="flex items-center justify-between">
                       <p className="flex items-center gap-2 text-sm font-medium"><GitBranch className="h-4 w-4 text-[#667085]"/> GitHub</p>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-[#E8E3DA]">main · xlmxbarber</span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs ring-1 ring-[#E8E3DA]">main · protegido</span>
                     </div>
                     <p className="mt-1 text-xs text-[#667085]">Workflow protegido · push vía backend <span className="font-mono">/api/github/publish</span></p>
                     <button onClick={testGitHubConnection} disabled={testingConnection==='github'} className="mt-2 rounded-full border border-[#E8E3DA] bg-white px-3 py-1.5 text-xs font-medium hover:bg-white disabled:opacity-50">{testingConnection==='github'? 'Verificando...':'Verificar workflow'}</button>
